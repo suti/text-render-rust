@@ -1,0 +1,33 @@
+{
+  "width": 1735.7080049933215,
+  "height": 513.0223388671875,
+  "paragraph": {
+    "textAlign": "center",
+    "resizing": "grow-vertically",
+    "align": "middle",
+    "paragraphSpacing": 0,
+    "advancedData": {
+      "repeat": []
+    },
+    "shadow": null,
+    "contents": [
+      {
+        "lineHeight": 1.2,
+        "paragraphIndentation": 0,
+        "blocks": [
+          {
+            "text": "//imgpri.chuangkit.com/design/2019/12/16/507889810_download?Expires=1576573864&OSSAccessKeyId=5jnc5LMLEKKIHxLYmSdF&Signature=UBtxO%2FpD0LYo%2F2Vs%2BfDYYR3XSNY%3D",
+            "fontFamily": "Noto Sans S Chinese Regular",
+            "fontSize": 85.50371244135086,
+            "fill": "#5271FF",
+            "italic": false,
+            "strokeWidth": 0,
+            "decoration": "",
+            "stroke": "#000000",
+            "letterSpacing": 0
+          }
+        ]
+      }
+    ]
+  }
+}
