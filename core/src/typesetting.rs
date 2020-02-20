@@ -359,12 +359,12 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
             match text_align_result {
                 JustifyText::Word(v) => {
                     if l_index != line_data.len() - 1 && w_index == word.len() - 1 {
-                        b_width = advance_width + v * font_size as f32;
+                        b_width = advance_width + font_size * letter_spacing + v * font_size as f32;
                     }
                 }
                 JustifyText::Space(v) => {
                     if word.is_blank() {
-                        b_width = advance_width + v * font_size as f32;
+                        b_width = advance_width + font_size * letter_spacing + v * font_size as f32;
                     }
                 }
                 JustifyText::None => {}
