@@ -142,7 +142,7 @@ impl<'a> CommandList<'a> {
         let font_size = block.font_size;
         let fill = block.fill.clone();
         let mut stroke_width = block.stroke_width as f64 * font_size as f64 / 20f64;
-        if stroke_width < 0.42f64 { stroke_width = 0.42f64 }
+        if stroke_width > 0f64 && stroke_width < 0.42f64 { stroke_width = 0.42f64 }
 
         CommandSegment::Stroke(fill, stroke_width)
     }
