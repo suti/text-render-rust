@@ -1,5 +1,6 @@
 use json::JsonValue::{Object, Array};
 use json::JsonValue;
+use crate::open_type_like::glyph::Glyph;
 
 
 #[derive(Debug, Clone)]
@@ -44,6 +45,22 @@ pub struct TextBlock {
     pub decoration: String,
 }
 
+impl Default for TextBlock {
+    fn default() -> Self {
+        TextBlock {
+            text: "".to_string(),
+            font_family: "".to_string(),
+            font_size: 0.0,
+            letter_spacing: 0.0,
+            fill: "".to_string(),
+            italic: false,
+            stroke: "".to_string(),
+            stroke_width: 0.0,
+            decoration: "".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TextData {
     pub width: f32,
@@ -54,7 +71,7 @@ pub struct TextData {
 
 #[derive(Debug, Clone)]
 pub struct TextBlockDetail<'a> {
-    pub glyph: &'a super::super::open_type_like::glyph::Glyph,
+    pub glyph: &'a Glyph,
     pub paragraph_indentation: f32,
     pub line_height: f32,
     pub text_align: String,
@@ -65,6 +82,24 @@ pub struct TextBlockDetail<'a> {
     pub position: (f32, f32),
     pub base_line_to_top: f32,
     pub base_line_to_bottom: f32,
+}
+
+impl<'a> TextBlockDetail<'a> {
+    pub fn default(glyph: &'a Glyph) -> Self {
+        TextBlockDetail {
+            glyph,
+            paragraph_indentation: 0.0,
+            line_height: 0.0,
+            text_align: "".to_string(),
+            resizing: "".to_string(),
+            align: "".to_string(),
+            paragraph_spacing: 0.0,
+            b_width: 0.0,
+            position: (0.0, 0.0),
+            base_line_to_top: 0.0,
+            base_line_to_bottom: 0.0,
+        }
+    }
 }
 
 fn get_object(value: &JsonValue) -> Option<&json::object::Object> {

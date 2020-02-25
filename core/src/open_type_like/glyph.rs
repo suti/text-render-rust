@@ -2,6 +2,7 @@ use svgtypes::{PathParser, PathSegment};
 
 use super::path::PathData;
 use super::transform::Transform;
+
 #[derive(Debug, Clone)]
 pub struct Glyph {
     pub path: PathData,
@@ -60,6 +61,18 @@ impl Glyph {
 
     pub fn get_advance_width(&self, font_size: f32) -> f32 {
         (self.advance_width as f32) / (self.units_per_em as f32) * font_size
+    }
+}
+
+impl Default for Glyph {
+    fn default() -> Self {
+        Glyph {
+            path: PathData(Vec::new()),
+            advance_width: 0,
+            units_per_em: 0,
+            ascender: 0,
+            descender: 0,
+        }
     }
 }
 

@@ -304,13 +304,23 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let base_line_to_bottom = max_font_size as f32 * (-descender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
 
     let mut start_position = (0f32, base_line_to_top + offset + if index == 0usize { 0f32 } else { base_line_to_bottom });
-    let line_width = {
+    let mut line_width = {
         let mut width = 0f32;
         for item in line_data {
             width += item.get_advance_width();
         }
         width
     };
+    let word = Word {
+        letters: Vec::new()
+    };
+    let ttb: TextBlock = Default::default();
+    let temp_glyph = Default::default();
+    let ttd = TextBlockDetail::default(&temp_glyph);
+    let word = line_data.last().unwrap_or(&word);
+    let default_letter = (ttb, ttd);
+    let (ttb, ttd) = word.letters.last().unwrap_or(&default_letter);
+    line_width -= ttb.letter_spacing * ttb.font_size;
     let diff_width = width - line_width;
     let mut padding_left = 0f32;
     let mut text_align_result = JustifyText::None;
@@ -351,7 +361,12 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
         let mut w_index = 0usize;
         word.iter().for_each(|letter| {
             let font_size = letter.0.font_size;
-            let letter_spacing = letter.0.letter_spacing;
+            let mut letter_spacing =
+                if l_index == line_data.len() - 1 && w_index == word.len() - 1 {
+                    0f32
+                } else {
+                    letter.0.letter_spacing
+                };
             let advance_width = letter.1.glyph.get_advance_width(font_size as f32);
             let paragraph_indentation = letter.1.paragraph_indentation;
             let mut b_width = advance_width + font_size as f32 * letter_spacing as f32;
