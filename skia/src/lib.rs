@@ -70,10 +70,11 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut read = File::open("/Volumes/asgard/start/text-render-rust/skia/src/f1.json").unwrap();
+        let mut read = File::open("/Users/suti/start/text-render-rust/skia/src/f1.json").unwrap();
         let mut test_font_json = String::from("");
         read.read_to_string(&mut test_font_json);
-        let mut read = File::open("/Volumes/asgard/start/text-render-rust/skia/src/t.json").unwrap();
+
+        let mut read = File::open("/Users/suti/start/text-render-rust/skia/src/t.json").unwrap();
         let mut test_text_json = String::from("");
         read.read_to_string(&mut test_text_json);
         let test_text_data = TextData::parse(&test_text_json).unwrap();
@@ -90,7 +91,7 @@ mod tests {
             font_data_ref.insert(ff.clone(), font_data.clone());
         }
         let text_data = TextData::parse(&test_text_json).unwrap();
-        let (b_box, result) = compute_render_command(&text_data, &font_data_ref).unwrap();
+        let (b_box, result, _) = compute_render_command(&text_data, &font_data_ref).unwrap();
         let b_box = b_box.get_total_box();
         let mut width = b_box.get_width().ceil() as f32;
         let height = b_box.get_height().ceil() as f32;

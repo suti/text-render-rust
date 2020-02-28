@@ -1,5 +1,5 @@
 {
-  "width": 1735.7080049933215,
+  "width": 673.7080049933215,
   "height": 513.0223388671875,
   "paragraph": {
     "textAlign": "center",
@@ -16,7 +16,7 @@
         "paragraphIndentation": 0,
         "blocks": [
           {
-            "text": "//imgpri.chuangkit.com/design/2019/12/16/507889810_download?Expires=1576573864&OSSAccessKeyId=5jnc5LMLEKKIHxLYmSdF&Signature=UBtxO%2FpD0LYo%2F2Vs%2BfDYYR3XSNY%3D",
+            "text": "正正",
             "fontFamily": "Noto Sans S Chinese Regular",
             "fontSize": 85.50371244135086,
             "fill": "#5271FF",
@@ -24,7 +24,7 @@
             "strokeWidth": 0,
             "decoration": "",
             "stroke": "#000000",
-            "letterSpacing": 0
+            "letterSpacing": 2
           }
         ]
       }

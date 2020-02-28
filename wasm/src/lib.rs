@@ -87,7 +87,7 @@ impl Executor {
             }
         }
 
-        let (b_boxes, result) = compute_render_command(text_data, self).unwrap();
+        let (b_boxes, result, min_width) = compute_render_command(text_data, self).unwrap();
 //        js_console_log(&format!("排版耗时 {:?}", now() - start));
 //        let start = now();
         let b_box = b_boxes.get_total_box();
@@ -100,7 +100,7 @@ impl Executor {
 
         let b_boxes: Vec<f32> = (&b_boxes).into();
         let commands: Vec<f32> = (&result).into();
-        let typed_array: Vec<f32> = [b_boxes, commands].concat();
+        let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
         let boxed_array = typed_array.into_boxed_slice();
 
 //        js_console_log(&format!("拼接指令耗时 {:?}", now() - start));

@@ -60,7 +60,7 @@ pub trait MergedFont {
 //}
 
 
-pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> Option<(BBoxes, (HashMap<(String, u32), PathData>, Vec<CommandSegment>))> {
+pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> Option<(BBoxes, (HashMap<(String, u32), PathData>, Vec<CommandSegment>), f32)> {
     let mut width = text_data.width;
     let mut height = text_data.height;
     /// get all text glyph width font_family
@@ -149,7 +149,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
 
     for item in mix_text_data.concat().iter() {
         let (b, d) = item;
-        let width = d.glyph.get_advance_width(b.font_size as f32) + b.font_size as f32 * b.letter_spacing as f32;
+        let width = d.glyph.get_advance_width(b.font_size as f32);
         if width > min_width {
             min_width = width;
         }
@@ -202,7 +202,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     let command_list = CommandList::new(&mix_letter_data_width_position);
     let commands = command_list.get_commands();
 
-    Some((mat_data, commands))
+    Some((mat_data, commands, min_width))
 }
 
 /// 计算换行
