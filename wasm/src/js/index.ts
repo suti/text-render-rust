@@ -11,7 +11,7 @@ class TextRender {
   public getFontData: (ff: string) => Promise<string> = s => Promise.resolve(s)
   public fallBack!: () => any
 
-  constructor (cb?: () => any) {
+  constructor(cb?: () => any) {
     if (cb)
       this.fallBack = cb
     this.worker = new Worker()
@@ -51,18 +51,18 @@ class TextRender {
     }
   }
 
-  private _exec (data: any): Promise<string> {
+  private _exec(data: any): Promise<string> {
     return new Promise(resolve => {
       this.coreRenderBack = resolve
       this.worker.postMessage({type: 'textData', content: {textData: data}})
     })
   }
 
-  bind (cb: (ff: string) => Promise<any>) {
+  bind(cb: (ff: string) => Promise<any>) {
     this.getFontData = cb
   }
 
-  exec (data: any): Promise<any> {
+  exec(data: any): Promise<any> {
     return new Promise(resolve => {
       this.coreStatus = this.coreStatus.then(async () => {
         let result = await this._exec(data)
@@ -71,14 +71,14 @@ class TextRender {
     })
   }
 
-  preload (ff: string): Promise<void> {
+  preload(ff: string): Promise<void> {
     this.worker.postMessage({type: 'preload', content: {fontFamily: ff}})
     return new Promise(resolve => {
       this.preloadFontResolve[ff] = resolve
     })
   }
 
-  terminate () {
+  terminate() {
     this.worker.terminate()
   }
 }

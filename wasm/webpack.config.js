@@ -5,7 +5,7 @@ function resolve(dir) {
 }
 
 const devConfig = {
-    entry: [resolve('./src/js/index.ts')],
+    entry: [resolve('./src/js/test.ts')],
     output: {
         publicPath: '/',
         filename: 'build.js',

@@ -1,0 +1,13 @@
+[package]
+name = "font"
+version = "0.1.0"
+authors = ["suti <lxy96@outlook.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+core = {  version = "=0.1.0", path = "../core" }
+stb_truetype = "0.3.1"
+ttf-parser = "0.4.0"
+miniz_oxide = "0.3.6"

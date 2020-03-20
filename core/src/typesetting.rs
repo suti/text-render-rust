@@ -82,14 +82,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     }
 //    let font_glyph: &Box<HashMap<(String, String), Glyph>> = &font_glyph;
     let glyph_none = Box::new(Glyph::get_none());
-    let get_glyph = |ff: String, text: String| {
-        let result = font_glyph.get(&(ff, text));
-        if result.is_none() {
-            Some(&glyph_none)
-        } else {
-            Some(*result.unwrap())
-        }
-    };
+    let get_glyph = |ff: String, text: String| *font_glyph.get(&(ff, text)).unwrap_or(&&glyph_none);
 
     /// make TextBlock & TextBlockDetail together
     let mut mix_text_data = Vec::<Vec<(TextBlock, TextBlockDetail)>>::new();
@@ -122,7 +115,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
             } = block;
             let mut text_chars = text.chars();
             while let Some(text) = text_chars.next() {
-                let glyph = get_glyph(font_family.clone(), text.to_string())?;
+                let glyph = get_glyph(font_family.clone(), text.to_string());
                 let text_block_detail = TextBlockDetail {
                     glyph,
                     line_height,

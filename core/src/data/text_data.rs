@@ -120,7 +120,10 @@ fn get_array(value: &JsonValue) -> Option<&json::Array> {
 
 impl TextData {
     pub fn parse(source: &str) -> Option<TextData> {
-        let json_d = json::parse(source).unwrap();
+        let json_d = json::parse(source);
+        if json_d.is_err() { return None; }
+
+        let json_d = json_d.unwrap();
 
         let result = get_object(&json_d)?;
 

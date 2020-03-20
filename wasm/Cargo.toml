@@ -1,6 +1,6 @@
 [package]
 name = "wasm"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["suti <lxy96@outlook.com>"]
 edition = "2018"
 
@@ -15,8 +15,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 core = {  version = "=0.1.0", path = "../core" }
+font = {  version = "=0.1.0", path = "../font" }
 js-sys = "0.3.33"
 web-sys = { version = "0.3.33", features = ["Window", "Performance"] }
 wasm-bindgen = "0.2.56"
-wasm-bindgen-test = "0.3.6"
 wasm-bindgen-futures = "0.4.6"

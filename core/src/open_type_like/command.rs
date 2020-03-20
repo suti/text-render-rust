@@ -78,12 +78,12 @@ impl From<&CommandSegment> for Vec<f32> {
             }
             CommandSegment::Stroke(ref a, ref b) => {
                 let without_prefix = a.trim_start_matches("#");
-                let color = i64::from_str_radix(without_prefix, 16u32).unwrap() as i64;
+                let color = i64::from_str_radix(without_prefix, 16u32).unwrap_or(0i64) as i64;
                 vec![2f32, *b as f32, color as f32]
             }
             CommandSegment::Fill(ref a) => {
                 let without_prefix = a.trim_start_matches("#");
-                let color = i64::from_str_radix(without_prefix, 16u32).unwrap() as i64;
+                let color = i64::from_str_radix(without_prefix, 16u32).unwrap_or(0i64) as i64;
                 vec![3f32, color as f32]
             }
             _ => vec![]
@@ -268,7 +268,8 @@ pub fn tran_commands_stream(content: &(HashMap<(String, u32), PathData>, Vec<Com
     for command in source_commands {
         match command {
             CommandSegment::Use(font_family, unicode, font_size) => {
-                let mut result = g_path.get(&(font_family.clone(), *unicode)).unwrap().clone();
+                let default_path_data = PathData::new();
+                let mut result = g_path.get(&(font_family.clone(), *unicode)).unwrap_or(&default_path_data).clone();
                 result.transform(Transform::new(*font_size as f32 / 100f32, 0f32, 0f32, *font_size as f32 / 100f32, 0f32, 0f32));
                 (commands.0).push(CommandSegment::Path(result));
             }

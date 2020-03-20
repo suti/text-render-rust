@@ -71,7 +71,8 @@ impl BBoxes {
     pub fn get_total_box(&self) -> BBox {
         let mut b_box: BBox = Default::default();
         if self.len() > 0 {
-            let b_box_1 = self.get(0).unwrap();
+            let default_box = BBox { x1: 0.0, y1: 0.0, x2: 0.0, y2: 0.0 };
+            let b_box_1 = self.get(0).unwrap_or(&default_box);
             b_box = b_box_1.clone();
             for item in self.iter() {
                 if item.x1 < b_box.x1 {

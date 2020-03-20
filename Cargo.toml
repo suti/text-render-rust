@@ -2,6 +2,7 @@
 
 members = [
     "core",
+    "font",
     "wasm",
     "skia"
 ]

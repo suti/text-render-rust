@@ -60,7 +60,7 @@ const onMessage = async (message: MessageEvent) => {
   switch (type) {
     case 'preload':
       await loadFont(fontFamily)
-      executor.loadFont(fontFamily)
+      // executor.loadFont(fontFamily)
       SCOPE.postMessage({type: 'loadedFont', content: {fontFamily}})
       break
     case 'textData':
@@ -104,7 +104,7 @@ SCOPE.addEventListener('message', onMessage)
 init().then(async () => {
   console.info('text worker load success!')
   await loadFont('default')
-  executor.loadFont('default')
+  // executor.loadFont('default')
   SCOPE.postMessage({type: 'loaded'})
 }).catch(e => {
   SCOPE.postMessage({type: 'loadErr', content: e})

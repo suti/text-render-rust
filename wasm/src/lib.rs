@@ -1,25 +1,12 @@
 extern crate js_sys;
 extern crate web_sys;
 extern crate wasm_bindgen;
-extern crate wasm_bindgen_test;
 extern crate wasm_bindgen_futures;
 
 pub mod chars;
 
-macro_rules! join_str {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = String::from("");
-            $(
-                let s = $x;
-                temp_vec.push_str(&s.to_string());
-            )*
-            temp_vec
-        }
-    };
-}
-
 use std::collections::HashMap;
+use std::borrow::Cow;
 
 use crate::js_sys::Promise;
 use crate::wasm_bindgen::JsValue;
@@ -27,30 +14,28 @@ use crate::wasm_bindgen::prelude::wasm_bindgen;
 use crate::wasm_bindgen_futures::{future_to_promise, JsFuture, spawn_local};
 
 use core::open_type_like::command::{tran_commands_stream, CommandSegment};
-use core::open_type_like::bbox::BBox;
+use core::open_type_like::bbox::{BBox, BBoxes};
 use core::typesetting::{compute_render_command, MergedFont};
 use core::data::font_data::FontData;
 use core::data::text_data::TextData;
-use wasm_bindgen_test::__rt::js_console_log;
 use core::open_type_like::glyph::Glyph;
+use font::ttf::FontCache;
+use font::check::check_type;
+use font::woff::decompress_woff;
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_name = "getGlyphData")]
-    fn get_glyph_data(ff: JsValue, char: JsValue) -> Box<[JsValue]>;
-
     #[wasm_bindgen(js_name = "getDate")]
     fn performance() -> f64;
+    #[wasm_bindgen(js_namespace = console, js_name = info)]
+    fn js_console_info(s: &str);
+    #[wasm_bindgen(js_namespace = console, js_name = error)]
+    fn js_console_error(s: &str);
 }
 
 
 #[wasm_bindgen]
-pub struct Executor {
-    //    font_data: HashMap<String, Box<FontData>>,
-//    default_font: Option<Box<FontData>>,
-    glyph_indexes: HashMap<(String, u16), usize>,
-    glyph_caches: Vec<Box<Glyph>>,
-}
+pub struct Executor(FontCache<Vec<u8>>);
 
 fn now() -> f64 {
     performance()
@@ -61,17 +46,12 @@ fn now() -> f64 {
 impl Executor {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        Executor {
-            glyph_indexes: HashMap::new(),
-            glyph_caches: Vec::new(),
-        }
+        Executor(FontCache::new())
     }
-
 
     #[wasm_bindgen(js_name = exec)]
     pub fn exec(&mut self, text_data: &str) -> Box<[f32]> {
 //        let start = now();
-//        js_console_log(&format!("start {:?}", start));
         let text_data = text_data.to_string();
         let text_data = &TextData::parse(&text_data).expect(&format!("文字解析失败{}", text_data));
 
@@ -82,14 +62,12 @@ impl Executor {
                 let font_family = &block.font_family;
                 let mut text_chars = text.chars();
                 while let Some(text) = text_chars.next() {
-                    self.check_glyph(font_family.to_string(), text as u16);
+                    self.check_glyph(font_family.to_string(), text as u32);
                 }
             }
         }
 
-        let (b_boxes, result, min_width) = compute_render_command(text_data, self).unwrap();
-//        js_console_log(&format!("排版耗时 {:?}", now() - start));
-//        let start = now();
+        let (b_boxes, result, min_width) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0));
         let b_box = b_boxes.get_total_box();
         let mut width = b_box.get_width().ceil() as f32;
         let height = b_box.get_height().ceil() as f32;
@@ -103,37 +81,54 @@ impl Executor {
         let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
         let boxed_array = typed_array.into_boxed_slice();
 
-//        js_console_log(&format!("拼接指令耗时 {:?}", now() - start));
+//        js_console_log(&format!("缓存数量 {:?} 耗时 {:?}", self.get_cache_count(), now() - start));
         boxed_array
     }
 
-    #[wasm_bindgen(js_name = loadFont)]
-    pub fn load_font(&mut self, font_name: String) {
-        for c in chars::get_char_code().iter() {
-            self.check_glyph(font_name.clone(), *c)
-        }
-    }
-
-    fn check_glyph(&mut self, font_name: String, c: u16) {
-        let result = self.glyph_indexes.get(&(font_name.clone(), c.clone()));
-        if result.is_none() {
-            let result = get_glyph_data(JsValue::from(&font_name), JsValue::from(c));
-            let advance_width = result[0].as_f64().unwrap() as i32;
-            let units_per_em = result[1].as_f64().unwrap() as i32;
-            let ascender = result[2].as_f64().unwrap() as i32;
-            let descender = result[3].as_f64().unwrap() as i32;
-            let path_str = result[4].as_string().unwrap();
-            let glyph = Glyph::parse(&path_str, advance_width, units_per_em, ascender, descender).unwrap();
-            self.glyph_caches.push(Box::new(glyph));
-            self.glyph_indexes.insert((font_name.clone(), c.clone()), self.glyph_caches.len() - 1);
+    #[wasm_bindgen(js_name = loadFontBuffer)]
+    pub fn load_font_buffer(&mut self, font_name: String, data: &[u8]) {
+        let data = Cow::Borrowed(data);
+        let mut data = data.to_vec();
+        if let Some((typ, p)) = check_type(&data) {
+            if "ttf".to_string() == typ.clone() {
+                if p {
+                    let start = now();
+                    js_console_info(&format!("解压开始 {:?}", &font_name));
+                    if let Some(data1) = decompress_woff(&data) {
+                        data = data1;
+                    } else {
+                        js_console_info(&format!("解压成功 {:?} 耗时 {:?}", &font_name, now() - start));
+                    }
+                }
+                let result = self.load_font_bytes(font_name.clone(), data);
+                if result.is_none() {
+                    js_console_error(&format!("加载失败 {:?} 不标准的ttf", &font_name));
+                }
+            } else {
+                js_console_error(&format!("加载失败 {:?} {:?}", font_name, typ));
+            }
         }
     }
 }
 
+impl std::ops::Deref for Executor {
+    type Target = FontCache<Vec<u8>>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Executor {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl MergedFont for Executor {
-    fn char_to_glyph(&self, font_name: String, c: char) -> &Box<Glyph> {
-        let c = c as u16;
-        let result = self.glyph_indexes.get(&(font_name.clone(), c));
-        &self.glyph_caches.get(*result.unwrap()).unwrap()
+    fn char_to_glyph<'a>(&'a self, font_name: String, char: char) -> &'a Box<Glyph> {
+        self.0.char_to_glyph(font_name, char)
     }
 }
