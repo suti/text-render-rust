@@ -47,7 +47,7 @@ impl Glyph {
     pub fn get_path(&self, x: f32, y: f32, font_size: f32) -> PathData {
         let mut path_data = self.path.clone();
         let scale = 1.0f32 / (self.units_per_em as f32) * font_size;
-        let mut transform = Transform {
+        let transform = Transform {
             a: scale,
             b: 0.0f32,
             c: 0.0f32,
@@ -88,19 +88,19 @@ impl Default for Glyph {
 
 fn add_path_segment(p: &mut PathData, d: PathSegment) {
     match d {
-        PathSegment::MoveTo { x, y, abs } => {
+        PathSegment::MoveTo { x, y, abs: _ } => {
             p.move_to(x as f32, y as f32)
         }
-        PathSegment::LineTo { x, y, abs } => {
+        PathSegment::LineTo { x, y, abs: _ } => {
             p.line_to(x as f32, y as f32)
         }
-        PathSegment::CurveTo { x, y, x1, y1, x2, y2, abs } => {
+        PathSegment::CurveTo { x, y, x1, y1, x2, y2, abs: _ } => {
             p.curve_to(x as f32, y as f32, x1 as f32, y1 as f32, x2 as f32, y2 as f32)
         }
-        PathSegment::Quadratic { x, y, x1, y1, abs } => {
+        PathSegment::Quadratic { x, y, x1, y1, abs: _ } => {
             p.quad_to(x as f32, y as f32, x1 as f32, y1 as f32)
         }
-        PathSegment::ClosePath { abs } => {
+        PathSegment::ClosePath { abs: _ } => {
             p.close()
         }
         _ => {

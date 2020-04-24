@@ -48,13 +48,12 @@ impl From<&CommandSegment> for String {
                 format!(r#"{{"type": "fill", "value": {:?}}}"#, a)
             }
             CommandSegment::Path(ref a) => {
-                let mut path_str = String::from(a);
                 join_str!["{\"type\": \"path\", \"value\": ", &String::from(a), "}"]
             }
             CommandSegment::Stroke(ref a, ref b) => {
                 format!(r#"{{"type": "stroke", "value": {:?}, "width": {:?}}}"#, a, b)
             }
-            CommandSegment::Transform(ref a, ref b) => {
+            CommandSegment::Transform(ref a, ref _b) => {
                 join_str!("{\"type\": \"transform\", \"value\": ", get_transform_str(a), "}")
             }
         }
@@ -64,7 +63,7 @@ impl From<&CommandSegment> for String {
 impl From<&CommandSegment> for Vec<f32> {
     fn from(item: &CommandSegment) -> Self {
         match item {
-            CommandSegment::Transform(ref a, ref b) => {
+            CommandSegment::Transform(ref a, ref _b) => {
                 let Transform { a, b, c, d, e, f } = a;
                 vec![0f32, *a as f32, *b as f32, *c as f32, *d as f32, *e as f32, *f as f32]
             }
@@ -108,18 +107,15 @@ impl<'a> CommandList<'a> {
     fn get_transform(block: &TextBlock, detail: &TextBlockDetail) -> CommandSegment {
         let a = 1f32;
         let b = 0f32;
-        let mut c = 0f32;
         let d = 1f32;
-        let mut e = 0f32;
-        let mut f = 0f32;
 
         let x = detail.position.0 as f32;
         let y = detail.position.1 as f32;
         let line_height = detail.line_height as f32;
 
-        c = if block.italic { (-(PI * 15f64 / 180f64).sin()) as f32 } else { 0f32 };
-        e = x - line_height * c;
-        f = y;
+        let c = if block.italic { (-(PI * 15f64 / 180f64).sin()) as f32 } else { 0f32 };
+        let e = x - line_height * c;
+        let f = y;
         CommandSegment::Transform(Transform { a, b, c, d, e, f }, false)
     }
 
@@ -152,7 +148,8 @@ impl<'a> CommandList<'a> {
         let font_size = block.font_size;
         let (x, mut y) = detail.position;
         let b_width = detail.b_width;
-        y += 0.04f32 * font_size as f32;
+        let line_width = 0.04f32 * font_size as f32;
+        y += line_width;
         let transform = CommandSegment::Transform(Default::default(), true);
         let mut path_data = PathData::new();
         match decoration.as_ref() {
@@ -161,16 +158,17 @@ impl<'a> CommandList<'a> {
             "underline" => {
                 path_data.move_to(x as f32, y as f32);
                 path_data.line_to((x + b_width) as f32, y as f32);
+                path_data.line_to((x + b_width) as f32, y + line_width as f32);
+                path_data.line_to(x as f32, y + line_width as f32);
+                path_data.line_to(x as f32, y as f32);
                 path_data.close();
             }
             _ => {}
         }
-        let stroke = CommandSegment::Stroke(block.fill.clone(), 0.04f64 * font_size as f64);
         let mut result = Vec::<CommandSegment>::new();
         if !path_data.is_empty() {
             result.push(transform);
             result.push(CommandSegment::Path(path_data));
-            result.push(stroke);
         }
         result
     }

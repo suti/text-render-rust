@@ -1,13 +1,26 @@
-use json::JsonValue::{Object, Array};
-use json::JsonValue;
+use serde_json::Value;
 use crate::open_type_like::glyph::Glyph;
-
 
 #[derive(Debug, Clone)]
 pub struct Shadow {
     pub blur: f32,
     pub offset: (f32, f32),
     pub color: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct Gradient {
+    pub type_: String,
+    pub vector: (f32, f32),
+    pub stop: Vec<(String, (u8, u8, u8, f32))>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArtTextOption {
+    pub fill: Option<Gradient>,
+    pub texture: Option<String>,
+    pub stroke: Vec<((u8, u8, u8, f32), f32)>,
+    pub shadow: Vec<((u8, u8, u8, f32), (f32, f32), f32)>,
 }
 
 #[derive(Debug, Clone)]
@@ -30,6 +43,7 @@ pub struct ParagraphData {
     pub align: String,
     pub paragraph_spacing: f32,
     pub paragraph_content: Vec<ParagraphContent>,
+    pub art_text: Option<ArtTextOption>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,97 +116,340 @@ impl<'a> TextBlockDetail<'a> {
     }
 }
 
-fn get_object(value: &JsonValue) -> Option<&json::object::Object> {
-    if let Object(result) = value {
-        Some(result)
+fn split_color_string(s: &str) -> Option<(u8, u8, u8, f32)> {
+    let s = s.replace(" ", "");
+    if !s.contains("rgb") {
+        if !s.contains("#") {
+            return None;
+        }
+        let without_prefix = s.trim_start_matches("#");
+        let color = i64::from_str_radix(without_prefix, 16u32).unwrap() as i64;
+        let r = (color >> 16) as u8;
+        let g = (color >> 8) as u8;
+        let b = color as u8;
+        let a = 1.0;
+        Some((r, g, b, a))
     } else {
-        None
-    }
-}
-
-fn get_array(value: &JsonValue) -> Option<&json::Array> {
-    if let Array(result) = value {
-        Some(result)
-    } else {
-        None
+        let mode = if s.contains("rgba(") {
+            "rgba("
+        } else {
+            "rgb("
+        };
+        let s_v: Vec<&str> = s.split(mode).collect();
+        let s_v: Vec<&str> = s_v.get(1)?.split(")").collect();
+        let s_v: Vec<&str> = s_v.get(0)?.split(",").collect();
+        let r = s_v.get(0).unwrap_or(&"0").parse::<u8>().unwrap_or(0);
+        let g = s_v.get(1).unwrap_or(&"0").parse::<u8>().unwrap_or(0);
+        let b = s_v.get(2).unwrap_or(&"0").parse::<u8>().unwrap_or(0);
+        let a = s_v.get(3).unwrap_or(&"1.0").parse::<f32>().unwrap_or(0.0f32);
+        Some((r, g, b, a))
     }
 }
 
 impl TextData {
     pub fn parse(source: &str) -> Option<TextData> {
-        let json_d = json::parse(source);
-        if json_d.is_err() { return None; }
+        let result = serde_json::from_str(source);
+        if result.is_err() { return None; }
+        let json: Value = result.unwrap();
+        let default_num = Value::Number(serde_json::Number::from_f64(200f64).unwrap());
+        let width = *&json.get("width").unwrap_or(&default_num).as_f64().unwrap_or_else(||
+            *&json.get("width").unwrap_or(&default_num).as_str().unwrap_or("200").parse::<f64>().unwrap_or(200f64)
+        ) as f32;
+        let height = *&json.get("height").unwrap_or(&default_num).as_f64().unwrap_or_else(||
+            *&json.get("height").unwrap_or(&default_num).as_str().unwrap_or("200").parse::<f64>().unwrap_or(200f64)
+        ) as f32;
 
-        let json_d = json_d.unwrap();
+        if *&json["paragraph"].as_object().is_none() { return None; }
 
-        let result = get_object(&json_d)?;
+        let paragraph_json = &json["paragraph"].as_object().unwrap();
+        let default_text_align = Value::String("center".to_string());
+        let text_align = paragraph_json.get("textAlign").unwrap_or(&default_text_align).as_str().unwrap_or("center").to_string();
+        let default_resizing = Value::String("grow-vertically".to_string());
+        let resizing = paragraph_json.get("resizing").unwrap_or(&default_resizing).as_str().unwrap_or("grow-vertically").to_string();
+        let default_align = Value::String("middle".to_string());
+        let align = paragraph_json.get("align").unwrap_or(&default_align).as_str().unwrap_or("middle").to_string();
+        let default_paragraph_spacing = Value::Number(serde_json::Number::from_f64(0.0).unwrap());
+        let paragraph_spacing = paragraph_json.get("paragraphSpacing").unwrap_or(&default_paragraph_spacing).as_f64().unwrap_or(0.0) as f32;
+        let mut art_text: Option<ArtTextOption> = None;
 
-        let width = result.get("width")?.as_f32()?;
-        let height = result.get("height")?.as_f32()?;
+        if paragraph_json.get("advancedData").unwrap_or_else(|| &Value::Null).as_object().is_some() {
+            let art_text_json = paragraph_json.get("advancedData").unwrap().as_object().unwrap();
+            let get_fill = || {
+                let type_ = "linear".to_string();
+                let default_stop = vec![("0".to_string(), (0u8, 0u8, 0u8, 1.0f32))];
 
-        let paragraph_data_json = get_object(result.get("paragraph")?)?;
+                if art_text_json.get("fill").is_some() {
+                    let default_fill = r#"
+                    {
+                        "stop": {
+                            "0": "rgba(0,0,0,1)"
+                        },
+                        "vector": [0, 1]
+                    }"#;
+                    let default_fill = serde_json::from_str(default_fill).unwrap();
+                    let fill_json = art_text_json.get("fill").unwrap().as_object().unwrap_or(&default_fill);
+                    let stop = {
+                        let mut stop = Vec::<(String, (u8, u8, u8, f32))>::new();
+                        let stop_json = fill_json.get("stop").unwrap().as_object().unwrap();
+                        for (key, value) in stop_json.iter() {
+                            let value = value.as_str().unwrap_or("rgba(0,0,0,1)");
+                            let value = split_color_string(value).unwrap_or((0u8, 0u8, 0u8, 1.0f32));
+                            stop.push((key.to_string(), value));
+                        }
+                        stop
+                    };
+                    let default_vec = vec![];
+                    let vector = fill_json.get("vector").unwrap().as_array().unwrap_or(&default_vec);
+                    let v0 = vector.get(0).unwrap_or(&Value::Number(serde_json::Number::from_f64(0.0).unwrap())).as_f64().unwrap_or(0.0) as f32;
+                    let v1 = vector.get(1).unwrap_or(&Value::Number(serde_json::Number::from_f64(0.0).unwrap())).as_f64().unwrap_or(0.0) as f32;
+                    Gradient {
+                        type_,
+                        vector: (v0, v1),
+                        stop,
+                    }
+                } else {
+                    Gradient {
+                        type_,
+                        vector: (0.0, 1.0),
+                        stop: default_stop,
+                    }
+                }
+            };
+            let get_stroke = || {
+                let default_vec = Value::Array(vec![]);
+                let default_vec1 = vec![];
+                let stroke = art_text_json.get("stroke").unwrap_or(&default_vec).as_array().unwrap_or(&default_vec1);
+                let stroke = {
+                    let mut v: Vec<((u8, u8, u8, f32), f32)> = vec![];
+                    for item in stroke.iter() {
+                        if item.as_object().is_none() {
+                            continue;
+                        }
+                        let item = item.as_object().unwrap();
+                        if item.get("width").is_none() {
+                            continue;
+                        }
+                        let color: (u8, u8, u8, f32) = {
+                            if item.get("color").is_none() {
+                                (0u8, 0u8, 0u8, 1.0f32)
+                            } else {
+                                let color_str = item.get("color").unwrap().as_str().unwrap_or("rgba(0,0,0,1)");
+                                split_color_string(color_str).unwrap_or((0u8, 0u8, 0u8, 1.0f32))
+                            }
+                        };
+                        let width = item.get("width").unwrap().as_f64().unwrap_or(0.0) as f32;
+                        v.push((color, width))
+                    }
+                    v
+                };
+                stroke
+            };
+            let get_shadow = || {
+                let default_vec = Value::Array(vec![]);
+                let default_vec1 = vec![];
+                let shadow = art_text_json.get("shadow").unwrap_or(&default_vec).as_array().unwrap_or(&default_vec1);
+                let shadow = {
+                    let mut v: Vec<((u8, u8, u8, f32), (f32, f32), f32)> = vec![];
+                    for item in shadow.iter() {
+                        if item.as_object().is_none() {
+                            continue;
+                        }
+                        let item = item.as_object().unwrap();
+                        let blur =
+                            if item.get("blur").is_none() {
+                                0f32
+                            } else {
+                                item.get("blur").unwrap().as_f64().unwrap_or(0f64) as f32
+                            };
+                        let color: (u8, u8, u8, f32) =
+                            if item.get("color").is_none() {
+                                (0u8, 0u8, 0u8, 1.0f32)
+                            } else {
+                                let color_str = item.get("color").unwrap().as_str().unwrap_or("rgba(0,0,0,1)");
+                                split_color_string(color_str).unwrap_or((0u8, 0u8, 0u8, 1.0f32))
+                            };
+                        let offset =
+                            if item.get("offset").is_none() {
+                                (0f32, 0f32)
+                            } else {
+                                let default_num = Value::Number(serde_json::Number::from_f64(0.0).unwrap());
+                                let default_vec = vec![];
+                                let offset = item.get("offset").unwrap().as_array().unwrap_or(&default_vec);
+                                let o0 = offset.get(0).unwrap_or(&default_num.clone()).as_f64().unwrap_or(0.0) as f32;
+                                let o1 = offset.get(1).unwrap_or(&default_num.clone()).as_f64().unwrap_or(0.0) as f32;
+                                (o0, o1)
+                            };
+                        v.push((color, offset, blur))
+                    }
+                    v
+                };
+                shadow
+            };
 
-        let text_align = paragraph_data_json.get("textAlign")?.as_str()?.to_string();
-        let resizing = paragraph_data_json.get("resizing")?.as_str()?.to_string();
-        let align = paragraph_data_json.get("align")?.as_str()?.to_string();
-        let paragraph_spacing = paragraph_data_json.get("paragraphSpacing")?.as_f32()?;
-
-        let mut paragraph_content = Vec::<ParagraphContent>::new();
-        let paragraph_content_json_arr = get_array(paragraph_data_json.get("contents")?)?;
-
-        for item in paragraph_content_json_arr {
-            let item_inner = get_object(item)?;
-            let line_height = item_inner.get("lineHeight")?.as_f32()?;
-            let paragraph_indentation = item_inner.get("paragraphIndentation")?.as_f32()?;
-
-            let text_blocks = get_array(item_inner.get("blocks")?)?;
-            let mut blocks = Vec::<TextBlock>::new();
-
-            for block in text_blocks {
-                let text_block = get_object(block)?;
-                let text = text_block.get("text")?.as_str()?.to_string();
-                let font_family = text_block.get("fontFamily")?.as_str()?.to_string();
-                let font_size = text_block.get("fontSize")?.as_f32()?;
-                let letter_spacing = text_block.get("letterSpacing")?.as_f32()?;
-                let fill = text_block.get("fill")?.as_str()?.to_string();
-                let italic = text_block.get("italic")?.as_bool()?;
-                let stroke = text_block.get("stroke")?.as_str()?.to_string();
-                let stroke_width = text_block.get("strokeWidth")?.as_f32()?;
-                let decoration = text_block.get("decoration")?.as_str()?.to_string();
-                blocks.push(TextBlock {
-                    text,
-                    font_family,
-                    font_size,
-                    letter_spacing,
-                    fill,
-                    italic,
-                    stroke,
-                    stroke_width,
-                    decoration,
-                })
-            }
-            paragraph_content.push(ParagraphContent {
-                line_height,
-                paragraph_indentation,
-                blocks,
-            });
+            let fill = Some(get_fill());
+            let texture =
+                if art_text_json.get("texture").is_some() {
+                    let text = art_text_json.get("texture").unwrap().as_str();
+                    if text.is_some() {
+                        Some(text.unwrap().to_string())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+            let stroke = get_stroke();
+            let shadow = get_shadow();
+            art_text = Some(ArtTextOption {
+                fill,
+                texture,
+                stroke,
+                shadow,
+            })
         }
+
+        let paragraph_content = {
+            let mut v = Vec::<ParagraphContent>::new();
+            let content_json: &Vec<Value> = paragraph_json.get("contents")?.as_array()?;
+            for item in content_json.iter() {
+                let obj = item.as_object();
+                if obj.is_none() { continue; }
+                let obj = obj.unwrap();
+                let line_height = {
+                    let value = obj.get("lineHeight");
+                    if value.is_none() {
+                        1.2f32
+                    } else {
+                        value.unwrap().as_f64().unwrap_or(1.2f64) as f32
+                    }
+                };
+                let paragraph_indentation = {
+                    let value = obj.get("paragraphIndentation");
+                    if value.is_none() {
+                        0f32
+                    } else {
+                        value.unwrap().as_f64().unwrap_or(0f64) as f32
+                    }
+                };
+                let blocks = {
+                    let mut block_vec = Vec::<TextBlock>::new();
+                    let block_vec_json = obj.get("blocks")?.as_array()?;
+                    for item in block_vec_json.iter() {
+                        let obj = item.as_object();
+                        if obj.is_none() { continue; }
+                        let obj = obj.unwrap();
+                        let text = {
+                            let value = obj.get("text");
+                            if value.is_none() {
+                                ""
+                            } else {
+                                value.unwrap().as_str().unwrap_or("")
+                            }
+                        }.to_string();
+                        let font_family = {
+                            let value = obj.get("fontFamily");
+                            if value.is_none() {
+                                "default"
+                            } else {
+                                value.unwrap().as_str().unwrap_or("default")
+                            }
+                        }.to_string();
+                        let fill = {
+                            let value = obj.get("fill");
+                            if value.is_none() {
+                                "#000000"
+                            } else {
+                                value.unwrap().as_str().unwrap_or("#000000")
+                            }
+                        }.to_string();
+                        let stroke = {
+                            let value = obj.get("stroke");
+                            if value.is_none() {
+                                "#000000"
+                            } else {
+                                value.unwrap().as_str().unwrap_or("#000000")
+                            }
+                        }.to_string();
+                        let decoration = {
+                            let value = obj.get("decoration");
+                            if value.is_none() {
+                                ""
+                            } else {
+                                value.unwrap().as_str().unwrap_or("")
+                            }
+                        }.to_string();
+                        let font_size = {
+                            let value = obj.get("fontSize");
+                            if value.is_none() {
+                                16f32
+                            } else {
+                                value.unwrap().as_f64().unwrap_or(16f64) as f32
+                            }
+                        };
+                        let letter_spacing = {
+                            let value = obj.get("letterSpacing");
+                            if value.is_none() {
+                                0f32
+                            } else {
+                                value.unwrap().as_f64().unwrap_or(0f64) as f32
+                            }
+                        };
+                        let stroke_width = {
+                            let value = obj.get("strokeWidth");
+                            if value.is_none() {
+                                0f32
+                            } else {
+                                value.unwrap().as_f64().unwrap_or(0f64) as f32
+                            }
+                        };
+                        let italic = {
+                            let value = obj.get("italic");
+                            if value.is_none() {
+                                false
+                            } else {
+                                value.unwrap().as_bool().unwrap_or(false)
+                            }
+                        };
+                        let block = TextBlock {
+                            text,
+                            font_family,
+                            font_size,
+                            letter_spacing,
+                            fill,
+                            italic,
+                            stroke,
+                            stroke_width,
+                            decoration,
+                        };
+                        block_vec.push(block);
+                    }
+                    block_vec
+                };
+                let content = ParagraphContent {
+                    line_height,
+                    paragraph_indentation,
+                    blocks,
+                };
+                v.push(content);
+            }
+            v
+        };
+
         let paragraph = ParagraphData {
             text_align,
             resizing,
             align,
             paragraph_spacing,
             paragraph_content,
+            art_text,
         };
 
-        let text_data = TextData {
+        Some(TextData {
             width,
             height,
             paragraph,
             source: source.to_string(),
-        };
-
-        Some(text_data)
+        })
     }
 }
 

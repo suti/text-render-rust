@@ -4,5 +4,6 @@ members = [
     "core",
     "font",
     "wasm",
-    "skia"
+    "skia",
+    "server"
 ]

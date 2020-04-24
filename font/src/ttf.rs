@@ -3,7 +3,6 @@ use crate::core::open_type_like::path::PathData;
 use crate::core::typesetting::MergedFont;
 use std::collections::HashMap;
 use stb_truetype as stt;
-use std::borrow::Cow;
 
 pub struct Font<Data: std::ops::Deref<Target=[u8]>>(stt::FontInfo<Data>);
 
@@ -19,9 +18,12 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
 
     pub fn get_glyph(&self, index: u32) -> Glyph {
         let index = self.find_glyph_index(index);
+        if index == 0 {
+            return Glyph::get_none()
+        }
         let stt::VMetrics { ascent: ascender, descent: descender, line_gap: _ } = self.get_v_metrics();
         let path_vertex = self.get_glyph_shape(index).unwrap_or(vec![]);
-        let stt::HMetrics { advance_width, left_side_bearing } = self.get_glyph_h_metrics(index);
+        let stt::HMetrics { advance_width, left_side_bearing:_ } = self.get_glyph_h_metrics(index);
         let units_per_em = self.units_per_em() as i32;
         Glyph {
             path: vertex_to_path_data(&path_vertex),
@@ -142,59 +144,6 @@ impl<Data: std::ops::Deref<Target=[u8]>> MergedFont for FontCache<Data> {
         let c = c as u32;
         let result = self.glyph_indexes.get(&(font_name.clone(), c));
         &self.glyph_caches.get(*result.unwrap()).unwrap()
-    }
-}
-
-mod test {
-    use std::borrow::Cow;
-    use crate::ttf::{Font, FontMap, FontCache};
-    use core::open_type_like::glyph::Glyph;
-    use core::typesetting::MergedFont;
-
-    use core::open_type_like::command::tran_commands_stream;
-    use core::typesetting::compute_render_command;
-    use core::data::text_data::TextData;
-
-    use std::collections::HashMap;
-    use std::fs::File;
-    use std::io::BufReader;
-    use std::io::prelude::*;
-    use crate::check::check_type;
-
-    #[test]
-    fn test() {
-        let file = include_bytes!("./SourceHanSansSC-Regular.ttf") as &[u8];
-        let mut font_cache = FontCache::new();
-        let (t, p) = check_type(file).unwrap();
-        println!("type: {:?} press: {:?}", t, p);
-        font_cache.load_font_bytes("default".to_string(), Cow::Borrowed(file).to_vec());
-
-        let mut read = File::open("/Users/suti/start/text-render-rust/skia/src/t.json").unwrap();
-        let mut test_text_json = String::from("");
-        read.read_to_string(&mut test_text_json);
-        let test_text_data = TextData::parse(&test_text_json).unwrap();
-
-        for content in test_text_data.paragraph.paragraph_content.iter() {
-            let blocks = &content.blocks;
-            for block in blocks.iter() {
-                let text = block.text.clone();
-                let font_family = &block.font_family;
-                let mut text_chars = text.chars();
-                while let Some(text) = text_chars.next() {
-                    font_cache.check_glyph(font_family.to_string(), text as u32);
-                }
-            }
-        }
-        let text_data = TextData::parse(&test_text_json).unwrap();
-        let (b_box, result, _) = compute_render_command(&text_data, &font_cache).unwrap();
-        let b_box = b_box.get_total_box();
-        let mut width = b_box.get_width().ceil() as f32;
-        let height = b_box.get_height().ceil() as f32;
-        if test_text_data.width > width {
-            width = test_text_data.width
-        }
-        let result1 = tran_commands_stream(&result);
-        println!("ok");
     }
 }
 

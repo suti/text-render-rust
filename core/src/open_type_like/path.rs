@@ -1,18 +1,4 @@
-use super::super::data::font_data;
-
 use super::transform::Transform;
-
-macro_rules! join_str {
-    ( $( $x:expr ),* ) => {
-        {
-            let mut temp_vec = String::from("");
-            $(
-                temp_vec.push_str(&$x.to_string());
-            )*
-            temp_vec
-        }
-    };
-}
 
 #[derive(Clone, Copy, Debug)]
 pub enum PathSegment {
@@ -39,16 +25,16 @@ impl From<&PathSegment> for String {
     fn from(path: &PathSegment) -> Self {
         let result = match path {
             PathSegment::MoveTo { x, y } => {
-                join_str!["{\"type\": \"move\", \"x\": ", (*x) as i32,", \"y\": ", (*y) as i32, "}"]
+                format!("M {:?} {:?}", *x, *y)
             }
             PathSegment::LineTo { x, y } => {
-                join_str!["{\"type\": \"line\", \"x\": ", (*x) as i32,", \"y\": ", (*y) as i32, "}"]
+                format!("L {:?} {:?}", *x, *y)
             }
             PathSegment::CurveTo { x, y, x1, y1, x2, y2 } => {
-                join_str!["{\"type\": \"curve\", \"x\": ", (*x) as i32,", \"y\": ", (*y) as i32,", \"x1\": ", (*x1) as i32,", \"y1\": ", (*y1) as i32,", \"x2\": ", (*x2) as i32,", \"y2\": ", (*y2) as i32, "}"]
+                format!("C {:?} {:?} {:?} {:?} {:?} {:?}", *x1, *y1, *x2, *y2, *x, *y)
             }
             PathSegment::ClosePath => {
-                join_str!["{\"type\": \"close\"}"]
+                "Z".to_string()
             }
         };
         result
@@ -79,13 +65,12 @@ pub struct PathData(pub Vec<PathSegment>);
 
 impl From<&PathData> for String {
     fn from(p: &PathData) -> Self {
-        let mut result = String::from("[");
+        let mut result = String::from("");
         for segment in p.iter() {
             result.push_str(&String::from(segment));
-            result.push_str(",");
+            result.push_str(" ");
         }
         if p.len() > 0 { result.pop(); }
-        result.push_str("]");
         result
     }
 }
@@ -159,6 +144,50 @@ impl PathData {
     pub fn transform_from(&mut self, offset: usize, ts: Transform) {
         transform_path(&mut self[offset..], ts);
     }
+
+    pub fn get_bounding_box(&self) -> Option<BoundingBox> {
+        let first = self.0.get(0);
+        if first.is_none() { return None; }
+        let first = first.unwrap();
+        let bbox = match first {
+            &PathSegment::MoveTo { ref x, ref y } => { Some(BoundingBox::new(*x, *y)) }
+            &PathSegment::LineTo { ref x, ref y } => { Some(BoundingBox::new(*x, *y)) }
+            &PathSegment::CurveTo { x: _, y: _, ref x1, ref y1, x2: _, y2: _ } => { Some(BoundingBox::new(*x1, *y1)) }
+            _ => return None
+        };
+        if bbox.is_none() { return None; }
+        let mut bbox = bbox.unwrap();
+        let mut start_x = 0f32;
+        let mut start_y = 0f32;
+        let mut prev_x = 0f32;
+        let mut prev_y = 0f32;
+        for command in self.0.iter() {
+            match command {
+                &PathSegment::MoveTo { ref x, ref y } => {
+                    bbox.add_point(*x, *y);
+                    start_x = *x;
+                    prev_x = *x;
+                    start_y = *y;
+                    prev_y = *y;
+                }
+                &PathSegment::LineTo { ref x, ref y } => {
+                    bbox.add_point(*x, *y);
+                    prev_x = *x;
+                    prev_y = *y;
+                }
+                &PathSegment::CurveTo { ref x, ref y, ref x1, ref y1, ref x2, ref y2 } => {
+                    bbox.add_bezier(prev_x, prev_y, *x1, *y1, *x2, *y2, *x, *y);
+                    prev_x = *x;
+                    prev_y = *y;
+                }
+                &PathSegment::ClosePath => {
+                    prev_x = start_x;
+                    prev_y = start_y;
+                }
+            }
+        }
+        Some(bbox)
+    }
 }
 
 impl std::ops::Deref for PathData {
@@ -211,4 +240,165 @@ fn transform_path(segments: &mut [PathSegment], ts: Transform) {
             PathSegment::ClosePath => {}
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BoundingBox {
+    pub x1: f32,
+    pub y1: f32,
+    pub x2: f32,
+    pub y2: f32,
+}
+
+impl BoundingBox {
+    pub fn new(x: f32, y: f32) -> Self {
+        BoundingBox {
+            x1: x,
+            y1: y,
+            x2: x,
+            y2: y,
+        }
+    }
+
+    pub fn get_width(&self) -> f32 {
+        self.x2 - self.x1
+    }
+
+    pub fn get_height(&self) -> f32 {
+        self.y2 - self.y1
+    }
+
+    pub fn merge(&self, other: &BoundingBox) -> Self {
+        let mut bbox = self.clone();
+        if other.x1 < bbox.x1 {
+            bbox.x1 = other.x1
+        }
+        if other.y1 < bbox.y1 {
+            bbox.y1 = other.y1
+        }
+        if other.x2 > bbox.x2 {
+            bbox.x2 = other.x2
+        }
+        if other.y2 > bbox.y2 {
+            bbox.y2 = other.y2
+        }
+        bbox
+    }
+
+    pub fn extends(&mut self, width: f32) {
+        self.x1 -= width;
+        self.y1 -= width;
+        self.x2 += width;
+        self.y2 += width;
+    }
+
+    pub fn move_t(&mut self, x: f32, y: f32) {
+        self.x1 += x;
+        self.y1 += y;
+        self.x2 += x;
+        self.y2 += y;
+    }
+
+    pub fn add_point(&mut self, x: f32, y: f32) {
+        if x < self.x1 {
+            self.x1 = x
+        }
+        if x > self.x2 {
+            self.x2 = x
+        }
+        if y < self.y1 {
+            self.y1 = y
+        }
+        if y > self.y2 {
+            self.y2 = y
+        }
+    }
+
+    pub fn add_point_x(&mut self, x: f32) {
+        if x < self.x1 {
+            self.x1 = x
+        }
+        if x > self.x2 {
+            self.x2 = x
+        }
+    }
+
+    pub fn add_point_y(&mut self, y: f32) {
+        if y < self.y1 {
+            self.y1 = y
+        }
+        if y > self.y2 {
+            self.y2 = y
+        }
+    }
+
+    pub fn add_bezier(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+        self.add_point(x0, y0);
+        self.add_point(x, y);
+
+        let mut compute = |p0: f32, p1: f32, p2: f32, p3: f32, i: usize| {
+            let b = 6.0 * p0 - 12.0 * p1 + 6.0 * p2;
+            let a = -3.0 * p0 + 9.0 * p1 - 9.0 * p2 + 3.0 * p3;
+            let c = 3.0 * p1 - 3.0 * p0;
+
+            if a == 0.0 {
+                if b == 0.0 { return; }
+
+                let t = -c / b;
+                if 0.0 < t && t < 1.0 {
+                    if i == 0 {
+                        self.add_point_x(derive(p0, p1, p2, p3, t));
+                    }
+
+                    if i == 1 {
+                        self.add_point_y(derive(p0, p1, p2, p3, t))
+                    }
+                }
+                return;
+            }
+
+            let b2ac = b.powf(2.0) - 4.0 * c * a;
+            if b2ac < 0.0 {
+                return;
+            }
+
+            let t1 = (-b + b2ac.sqrt()) / (2.0 * a);
+            if 0.0 < t1 && t1 < 1.0 {
+                if i == 0 {
+                    self.add_point_x(derive(p0, p1, p2, p3, t1));
+                }
+
+                if i == 1 {
+                    self.add_point_y(derive(p0, p1, p2, p3, t1));
+                }
+            }
+            let t2 = (-b - b2ac.sqrt()) / (2.0 * a);
+            if 0.0 < t2 && t2 < 1.0 {
+                if i == 0 {
+                    self.add_point_x(derive(p0, p1, p2, p3, t2));
+                }
+
+                if i == 1 {
+                    self.add_point_y(derive(p0, p1, p2, p3, t2));
+                }
+            }
+        };
+        compute(x0, x1, x2, x, 0);
+        compute(y0, y1, y2, y, 1);
+    }
+
+    pub fn add_quad(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x: f32, y: f32) {
+        let cp1x = x0 + 2.0 / 3.0 * (x1 - x0);
+        let cp1y = y0 + 2.0 / 3.0 * (y1 - y0);
+        let cp2x = cp1x + 1.0 / 3.0 * (x - x0);
+        let cp2y = cp1y + 1.0 / 3.0 * (y - y0);
+        self.add_bezier(x0, y0, cp1x, cp1y, cp2x, cp2y, x, y);
+    }
+}
+
+fn derive(v0: f32, v1: f32, v2: f32, v3: f32, t: f32) -> f32 {
+    return (1.0 - t).powf(3.0) * v0 +
+        3.0 * (1.0 - t).powf(2.0) * t * v1 +
+        3.0 * (1.0 - t) * t.powf(2.0) * v2 +
+        t.powf(3.0) * v3;
 }

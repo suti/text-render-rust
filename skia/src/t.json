@@ -1,28 +1,107 @@
 {
-  "width": 673.7080049933215,
-  "height": 513.0223388671875,
+  "width": 669.4534743745712,
+  "height": 502.3413391113281,
   "paragraph": {
     "textAlign": "center",
     "resizing": "grow-vertically",
     "align": "middle",
     "paragraphSpacing": 0,
     "advancedData": {
-      "repeat": []
+      "fill": {
+        "stop": {
+          "0": "rgba(0,255,128,0)"
+        },
+        "vector": [
+          1,
+          1
+        ]
+      },
+      "texture": "//imgpub.chuangkit.com/materials/2018/08/24/cd1f21e7-d751-405f-9563-a0dbd50cbe6a@0e_800w_0c_0i_0o_1x.src",
+      "stroke": [
+        {
+          "color": "#ffffff",
+          "width": 0.08
+        }
+      ],
+      "shadow": [
+        {
+          "color": "rgba(223,223,230,1)",
+          "offset": [
+            0.014318912319027583,
+            0.01431891231902759
+          ],
+          "blur": 0.0125
+        }
+      ]
     },
-    "shadow": null,
     "contents": [
       {
         "lineHeight": 1.2,
         "paragraphIndentation": 0,
         "blocks": [
           {
-            "text": "牛牪犇",
-            "fontFamily": "default",
-            "fontSize": 85.50371244135086,
-            "fill": "#5271FF",
+            "text": "双",
+            "fontFamily": "HappyZcool",
+            "fontSize": 209.30886800970785,
+            "fill": "#000000",
             "italic": false,
             "strokeWidth": 0,
-            "decoration": "",
+            "decoration": "underline",
+            "stroke": "#000000",
+            "letterSpacing": 0
+          },
+          {
+            "text": "击",
+            "fontFamily": "HappyZcool",
+            "fontSize": 209.30886800970785,
+            "fill": "#000000",
+            "italic": false,
+            "strokeWidth": 0,
+            "decoration": "underline",
+            "stroke": "#000000",
+            "letterSpacing": 0
+          },
+          {
+            "text": "修",
+            "fontFamily": "HappyZcool",
+            "fontSize": 209.30886800970785,
+            "fill": "#000000",
+            "italic": false,
+            "strokeWidth": 0,
+            "decoration": "underline",
+            "stroke": "#000000",
+            "letterSpacing": 0
+          },
+          {
+            "text": "改",
+            "fontFamily": "HappyZcool",
+            "fontSize": 209.30886800970785,
+            "fill": "#000000",
+            "italic": false,
+            "strokeWidth": 0,
+            "decoration": "underline",
+            "stroke": "#000000",
+            "letterSpacing": 0
+          },
+          {
+            "text": "文",
+            "fontFamily": "HappyZcool",
+            "fontSize": 209.30886800970785,
+            "fill": "#000000",
+            "italic": false,
+            "strokeWidth": 0,
+            "decoration": "underline",
+            "stroke": "#000000",
+            "letterSpacing": 0
+          },
+          {
+            "text": "字",
+            "fontFamily": "HappyZcool",
+            "fontSize": 209.30886800970785,
+            "fill": "#000000",
+            "italic": false,
+            "strokeWidth": 0,
+            "decoration": "underline",
             "stroke": "#000000",
             "letterSpacing": 0
           }

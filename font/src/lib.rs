@@ -2,7 +2,7 @@ extern crate core;
 
 pub mod ttf;
 pub mod woff;
-pub mod otf;
+// pub mod otf;
 // pub mod font2;
 
 pub mod check {

@@ -1,6 +1,5 @@
 extern crate miniz_oxide;
 
-use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone)]
@@ -101,12 +100,7 @@ impl<'a> ReadStream<'a> {
     }
 
     pub fn read_vec(&mut self, step: usize) -> Option<Vec<u8>> {
-        let start = self.offset;
-        self.offset += step;
-        let end = self.offset;
-
-        let result = self.data.get(start..end)?;
-        Some(result.to_vec())
+        self.read(step).and_then(|r| Some(r.to_vec()))
     }
 }
 
@@ -147,8 +141,6 @@ impl DerefMut for BufferOffset {
 }
 
 impl BufferOffset {
-    pub fn new() -> Self { BufferOffset(0) }
-
     pub fn to_be(&self) -> Vec<u8> {
         convert_u32_to_u8s_be(self.0 as u32).to_vec()
     }
@@ -195,8 +187,6 @@ pub fn decompress_woff(input: &[u8]) -> Option<Vec<u8>> {
     let mut rs = ReadStream::new(input);
     let header: WOFFHeader = WOFFHeader::new(&mut rs)?;
 
-    println!("{:?}", header.clone());
-
     ws.write(header.flavor);
     ws.write(header.num_tables.clone());
 
@@ -224,14 +214,14 @@ pub fn decompress_woff(input: &[u8]) -> Option<Vec<u8>> {
     let mut offset = ws.offset;
     let mut out_offset_map = Vec::<BufferOffset>::new();
 
-    for i in 0..num_tables.clone() {
+    for _i in 0..num_tables.clone() {
         let table_directory = TableDirectory::new(&mut rs)?;
         table_directory_map.push(table_directory);
         offset += 4 * 4;
     }
 
     for table_directory in table_directory_map.iter() {
-        let TableDirectory { tag, offset: _, comp_length, orig_length, orig_checksum } = table_directory;
+        let TableDirectory { tag, offset: _, comp_length: _, orig_length, orig_checksum } = table_directory;
         ws.write(tag.to_vec());
         ws.write(orig_checksum.to_vec());
         ws.write(BufferOffset(offset.clone()).to_be());
@@ -283,6 +273,7 @@ pub fn decompress_woff(input: &[u8]) -> Option<Vec<u8>> {
     Some(output)
 }
 
+#[cfg(test)]
 mod test {
     use crate::woff::decompress_woff;
     use std::fs::File;
@@ -290,7 +281,7 @@ mod test {
 
     #[test]
     fn test() {
-        let file = include_bytes!("./c_739.woff") as &[u8];
+        let file = include_bytes!("./c_764") as &[u8];
         let result = decompress_woff(file).unwrap();
         // let result = file;
         let mut file = File::create("./z1.ttf").unwrap();

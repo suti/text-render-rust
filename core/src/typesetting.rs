@@ -1,73 +1,20 @@
 use super::data::text_data::{TextData, TextBlock, ParagraphContent, ParagraphData, TextBlockDetail};
-use super::data::font_data::FontData;
 use super::open_type_like::command::{CommandSegment, CommandList};
 use super::open_type_like::glyph::Glyph;
-use super::open_type_like::font::Font;
 use super::open_type_like::path::PathData;
 use super::open_type_like::bbox::{BBox, BBoxes};
 use super::open_type_like::word::Word;
 
 use std::collections::HashMap;
-use regex::Regex;
 
 pub trait MergedFont {
     fn char_to_glyph<'a>(&'a self, font_name: String, char: char) -> &'a Box<Glyph>;
 }
 
-
-//pub struct Typesetting<'a> {
-//    pub text_data: TextData,
-//    font_data_list: HashMap<String, &'a Box<FontData>>,
-//}
-//
-//impl<'a> Typesetting<'a> {
-////    pub fn new(text_data_source: &str, font_data_source: HashMap<String, String>) -> Self {
-////        let mut font_data_parsed: HashMap<String, &'a Box<FontData>> = HashMap::new();
-////        for (ff, font_data) in font_data_source.clone().iter() {
-////            let font: &'static Box<FontData> = &Box::new(FontData::parse(font_data).unwrap());
-////            font_data_parsed.insert(ff.clone(), &font);
-////            std::mem::forget(font);
-////        }
-////        Typesetting {
-////            text_data: TextData::parse(text_data_source).unwrap(),
-////            font_data_list: font_data_parsed,
-////        }
-////    }
-//
-//    pub fn from(text_data: TextData, font_data_list: HashMap<String, &'a Box<FontData>>) -> Self {
-//        Typesetting {
-//            text_data,
-//            font_data_list,
-//        }
-//    }
-//
-//    fn parse_font_to_glyph(&self) -> Option<Box<HashMap<(String, String), Glyph>>> {
-//        let text_data = self.text_data.clone();
-//        let default_font = &self.font_data_list.get("default")?;
-//        let mut font_glyph = HashMap::<(String, String), Glyph>::new();
-//        for pc in text_data.paragraph.paragraph_content.iter() {
-//            for b in pc.blocks.iter() {
-//                let item = self.font_data_list.get(&b.font_family)?;
-//                let g_list = item.char_to_glyph(&b.text, Some(default_font))?;
-//                for (c, g) in g_list {
-//                    font_glyph.insert((b.font_family.clone(), c.to_string()), g);
-//                }
-//            }
-//        }
-//        Some(Box::new(font_glyph))
-//    }
-//    /// Option<Vec<Command>>
-//}
-
-
 pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> Option<(BBoxes, (HashMap<(String, u32), PathData>, Vec<CommandSegment>), f32)> {
     let mut width = text_data.width;
-    let mut height = text_data.height;
-    /// get all text glyph width font_family
+    let height = text_data.height;
     let mut font_glyph = HashMap::<(String, String), &Box<Glyph>>::new();
-//    let get_glyph = |font_family, c| {
-//        font.char_to_glyph(font_family, c)
-//    };
     for pc in text_data.paragraph.paragraph_content.iter() {
         for b in pc.blocks.iter() {
             let text = (&b.text).clone();
@@ -84,9 +31,9 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     let glyph_none = Box::new(Glyph::get_none());
     let get_glyph = |ff: String, text: String| *font_glyph.get(&(ff, text)).unwrap_or(&&glyph_none);
 
-    /// make TextBlock & TextBlockDetail together
     let mut mix_text_data = Vec::<Vec<(TextBlock, TextBlockDetail)>>::new();
     let ParagraphData {
+        art_text: _,
         paragraph_content,
         paragraph_spacing,
         align,
@@ -96,22 +43,24 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     for content in paragraph_content.iter() {
         mix_text_data.push(Vec::<(TextBlock, TextBlockDetail)>::new());
         let ParagraphContent {
-            paragraph_indentation: mut paragraph_indentation,
-            line_height: mut line_height,
+            paragraph_indentation,
+            line_height,
             blocks
         } = content;
 
+        let line_height = *line_height;
+        let mut paragraph_indentation = *paragraph_indentation;
         for block in blocks.iter() {
             let TextBlock {
                 font_family,
                 text,
-                font_size,
-                letter_spacing,
-                fill,
-                italic,
-                stroke,
-                stroke_width,
-                decoration
+                font_size: _,
+                letter_spacing: _,
+                fill: _,
+                italic: _,
+                stroke: _,
+                stroke_width: _,
+                decoration: _
             } = block;
             let mut text_chars = text.chars();
             while let Some(text) = text_chars.next() {
@@ -137,7 +86,6 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
         }
     };
 
-    ///
     let mut min_width = 0f32;
 
     for item in mix_text_data.concat().iter() {
@@ -148,7 +96,6 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
         }
     }
 
-    /// trans letter data to word data
     let mut mix_word_data = Vec::<Vec<Word>>::new();
     for mix_text_data_in_line in mix_text_data {
         let result = Word::pick_words(mix_text_data_in_line);
@@ -198,7 +145,6 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     Some((mat_data, commands, min_width))
 }
 
-/// 计算换行
 fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>) -> Vec<Vec<Word<'a>>> {
     let mut wrapped_all = Vec::<Vec<Word>>::new();
     let wrapped_words = words.iter().map(|word| {
@@ -210,7 +156,7 @@ fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>) -> Vec<Vec<Word<'a>>
                 let c_width = c.1.glyph.get_advance_width(c.0.font_size as f32) + c.0.font_size as f32 * c.0.letter_spacing as f32;
                 if (p + c_width).ceil() as f32 > limit {
                     if split_letters.len() > 0 {
-                        split_words.push(Word { letters: split_letters.splice((..), vec![]).collect() });
+                        split_words.push(Word { letters: split_letters.splice(.., vec![]).collect() });
                     }
                     split_letters.push((c.0.clone(), c.1.clone()));
                     return c_width;
@@ -219,7 +165,7 @@ fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>) -> Vec<Vec<Word<'a>>
                 p + c_width
             });
             if split_letters.len() > 0 {
-                split_words.push(Word { letters: split_letters.splice((..), vec![]).collect() })
+                split_words.push(Word { letters: split_letters.splice(.., vec![]).collect() })
             }
             return split_words;
         }
@@ -274,7 +220,7 @@ fn get_max_item<'a>(line_data: &'a Vec<Word<'a>>) -> &'a (TextBlock, TextBlockDe
 
 /// 计算每个字形的位置
 fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, String, f32), index: usize) -> (Vec<(TextBlock, TextBlockDetail<'a>)>, (f32, f32, String, f32)) {
-    let (width, mut height, text_align, mut offset) = option;
+    let (width, height, text_align, mut offset) = option;
     let mut flat_data = Vec::<(TextBlock, TextBlockDetail)>::new();
     if line_data.len() == 0 { return (flat_data, (width, height, text_align, offset)); }
     let mut font_size = 0f32;
@@ -312,7 +258,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let ttd = TextBlockDetail::default(&temp_glyph);
     let word = line_data.last().unwrap_or(&word);
     let default_letter = (ttb, ttd);
-    let (ttb, ttd) = word.letters.last().unwrap_or(&default_letter);
+    let (ttb, _ttd) = word.letters.last().unwrap_or(&default_letter);
     line_width -= ttb.letter_spacing * ttb.font_size;
     let diff_width = width - line_width;
     let mut padding_left = 0f32;
@@ -354,7 +300,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
         let mut w_index = 0usize;
         word.iter().for_each(|letter| {
             let font_size = letter.0.font_size;
-            let mut letter_spacing =
+            let letter_spacing =
                 if l_index == line_data.len() - 1 && w_index == word.len() - 1 {
                     0f32
                 } else {
@@ -378,7 +324,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
                 JustifyText::None => {}
             };
             start_position.0 += paragraph_indentation as f32;
-            let mut text_block = letter.0.clone();
+            let text_block = letter.0.clone();
             let mut text_block_detail = letter.1.clone();
             text_block_detail.b_width = b_width.into();
             text_block_detail.position = (start_position.0.into(), start_position.1.into());

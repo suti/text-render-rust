@@ -18,14 +18,14 @@ impl Font for FontData {
 //            let mut gs = &"".to_string();
             match pack_index {
                 Some(i) => {
-                    let (a, g) = &self.glyphs_pack[*i];
+                    let (_a, g) = &self.glyphs_pack[*i];
                     char_glyphs.push((c.to_string(), g.clone()));
                 }
                 None => {
                     if let Some(fall_back) = default_font {
                         let pack_index = fall_back.glyph_index_map.get(&index.to_string());
                         if let Some(i) = pack_index {
-                            let (a, g) = &fall_back.glyphs_pack[*i];
+                            let (_a, g) = &fall_back.glyphs_pack[*i];
                             char_glyphs.push((c.to_string(), g.clone()));
                         }
                     }

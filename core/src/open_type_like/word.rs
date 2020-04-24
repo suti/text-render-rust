@@ -55,7 +55,6 @@ impl<'a> Word<'a> {
 //                println!("处理数据 {:?}， {}", d, point);
 //                time = std::time::SystemTime::now();
 //            }
-
         }
 //        if let Ok(d) = std::time::SystemTime::now().duration_since(time) {
 //            println!("pp {:?}", d);
@@ -74,11 +73,9 @@ impl<'a> Word<'a> {
 
     pub fn is_blank(&self) -> bool {
         if self.letters.len() == 1 {
-            if let v = self.letters.get(0) {
-                if v.is_none() { false } else {
-                    let regex = Regex::new(r" ").unwrap();
-                    regex.is_match(&v.unwrap().0.text)
-                }
+            if let Some(v) = self.letters.get(0) {
+                let regex = Regex::new(r" ").unwrap();
+                regex.is_match(&v.0.text)
             } else {
                 false
             }
