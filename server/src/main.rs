@@ -90,7 +90,7 @@ async fn main() {
             let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
             let glyph_cache_count = font_cache.get_glyph_cache_count();
             let font_cache_count = font_cache.get_font_cache_count();
-            println!("convertSvg: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
+            println!("convertCommand: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
             warp::http::Response::builder().status(200).body(format!("{:?}", typed_array)).unwrap()
         });
     let convert_svg = warp::path("convertSvg")
