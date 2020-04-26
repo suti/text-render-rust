@@ -19,11 +19,11 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
     pub fn get_glyph(&self, index: u32) -> Glyph {
         let index = self.find_glyph_index(index);
         if index == 0 {
-            return Glyph::get_none()
+            return Glyph::get_none();
         }
         let stt::VMetrics { ascent: ascender, descent: descender, line_gap: _ } = self.get_v_metrics();
         let path_vertex = self.get_glyph_shape(index).unwrap_or(vec![]);
-        let stt::HMetrics { advance_width, left_side_bearing:_ } = self.get_glyph_h_metrics(index);
+        let stt::HMetrics { advance_width, left_side_bearing: _ } = self.get_glyph_h_metrics(index);
         let units_per_em = self.units_per_em() as i32;
         Glyph {
             path: vertex_to_path_data(&path_vertex),
@@ -91,8 +91,11 @@ impl<Data: std::ops::Deref<Target=[u8]>> FontCache<Data> {
             self.glyph_indexes.insert((font_name, c), self.glyph_caches.len() - 1);
         }
     }
-    pub fn get_cache_count(&self) -> usize {
+    pub fn get_glyph_cache_count(&self) -> usize {
         self.glyph_caches.len()
+    }
+    pub fn get_font_cache_count(&self) -> usize {
+        self.font_map.0.len()
     }
 }
 

@@ -6,18 +6,20 @@ use core::open_type_like::bbox::BBoxes;
 use core::open_type_like::command::{tran_commands_stream, CommandsList};
 use font::ttf::FontCache;
 use font::woff::decompress_woff;
+use font::check::check_type;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 use std::time::Duration;
+use std::time::SystemTime;
 use std::thread;
 use std::fs::File;
 use std::io::Read;
+use std::fmt::Formatter;
 use server::svg_util::url::fetch_async;
 use notify::{Watcher, RecursiveMode, watcher};
 use serde_json::Value as JsonValue;
-use font::check::check_type;
 
 #[macro_use]
 pub mod svg_util;
@@ -26,6 +28,17 @@ pub mod draw;
 static FONT_UPDATE_DATA: &'static str = "/opt/chuangkit.font.cache/data.json";
 
 type AF = Arc<Mutex<FontCache<Vec<u8>>>>;
+
+
+struct ProcessError(String);
+
+impl warp::reject::Reject for ProcessError {}
+
+impl std::fmt::Debug for ProcessError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -62,6 +75,7 @@ async fn main() {
         .and(font_cache.clone())
         .and(font_update_map_in_warp.clone())
         .map(|json: Bytes, font_cache, font_update_map_in_warp| {
+            let start = SystemTime::now();
             let json = String::from_utf8(json.to_vec());
             if json.is_err() { return warp::http::Response::builder().status(500).body(String::from("解析字符串失败")).unwrap(); }
             let json = json.unwrap();
@@ -71,15 +85,22 @@ async fn main() {
             let b_boxes: Vec<f32> = (&b_boxes).into();
             let commands: Vec<f32> = (&commands).into();
             let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
+            let now = SystemTime::now();
+            let diff = now.duration_since(start).unwrap_or(Duration::new(0, 0));
+            let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
+            let glyph_cache_count = font_cache.get_glyph_cache_count();
+            let font_cache_count = font_cache.get_font_cache_count();
+            println!("convertSvg: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
             warp::http::Response::builder().status(200).body(format!("{:?}", typed_array)).unwrap()
         });
     let convert_svg = warp::path("convertSvg")
         .and(warp::body::bytes().and_then(|json: Bytes| async move {
+            let start = SystemTime::now();
             let json = String::from_utf8(json.to_vec());
-            if json.is_err() { return Err(warp::reject::reject()); }
+            if json.is_err() { return Err(warp::reject::custom(ProcessError("解析字符串失败".to_string()))); }
             let json = json.unwrap();
             let text_data = TextData::parse(&json);
-            if text_data.is_none() { return Err(warp::reject::reject()); }
+            if text_data.is_none() { return Err(warp::reject::custom(ProcessError("解析文字数据失败".to_string()))); }
             let text_data = text_data.unwrap();
             let texture_raw = if text_data.paragraph.art_text.is_some() {
                 let art_text = text_data.paragraph.art_text.unwrap();
@@ -88,12 +109,12 @@ async fn main() {
                     fetch_async(&texture).await
                 } else { None }
             } else { None };
-            Ok((json, texture_raw))
+            Ok((json, texture_raw, start))
         }))
         .and(font_cache.clone())
         .and(font_update_map_in_warp.clone())
-        .map(|result: (String, Option<Bytes>), font_cache: AF, font_update_map_in_warp| {
-            let (json, texture_raw) = result;
+        .map(|result: (String, Option<Bytes>, SystemTime), font_cache: AF, font_update_map_in_warp| {
+            let (json, texture_raw, start) = result;
             let result = cc(&json, &font_cache, &font_update_map_in_warp);
             if result.is_none() { return warp::http::Response::builder().status(500).body(String::from("解析文字数据失败")).unwrap(); }
             let (_min_width, b_boxes, commands, text_data) = result.unwrap();
@@ -119,16 +140,24 @@ async fn main() {
             } else {
                 draw::exec_text(&commands, width, height, 1.0)
             };
+            let now = SystemTime::now();
+            let diff = now.duration_since(start).unwrap_or(Duration::new(0, 0));
+            let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
+            let glyph_cache_count = font_cache.get_glyph_cache_count();
+            let font_cache_count = font_cache.get_font_cache_count();
+            println!("convertSvg: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
             warp::http::Response::builder().status(200).header("content-type", "image/svg+xml").body(svg).unwrap()
         });
     let info = warp::path("info")
         .and(font_cache.clone())
         .map(|font_cache: AF| {
             let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
-            let count = font_cache.get_cache_count();
+            let glyph_cache_count = font_cache.get_glyph_cache_count();
+            let font_cache_count = font_cache.get_font_cache_count();
             format!("\
                 graph_cache_count: {};
-            ", count)
+                font_cache_count: {};
+            ", glyph_cache_count, font_cache_count)
         });
 
     let routes = warp::post().and(convert_command.or(convert_svg).or(info));
@@ -177,13 +206,14 @@ fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_updat
                     println!("解压开始 {:?}", &font_name);
                     if let Some(data1) = decompress_woff(&font_buffer) {
                         font_buffer = data1;
-                    } else {
                         println!("解压成功 {:?}", &font_name);
+                    } else {
+                        println!("解压失败 {:?}", &font_name);
                     }
                 }
                 let result = font_cache.load_font_bytes(font_name.clone(), font_buffer);
                 if result.is_none() {
-                    println!("加载失败 {:?} 不标准的ttf", &font_name);
+                    println!("加载失败 {:?}", &font_name);
                 } else {
                     println!("加载完成 {:?}", &font_name);
                 }

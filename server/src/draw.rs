@@ -171,7 +171,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
 
     if shadow.len() > 0 {
         let line_width = max_stroke_width;
-        let style = create_style_tag(&into_str![".", &uuid,"-shadow { stroke-width: ", line_width * ref_size, "; stroke: #000000; }"]);
+        let style = create_style_tag(&into_str![".", &uuid,"-shadow { stroke-width: ", line_width * ref_size, "; stroke: #000000; fill: #ffffff; }"]);
         defs.append(style);
 
         let mut len = shadow.len() - 1;

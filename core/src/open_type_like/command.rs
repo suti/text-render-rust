@@ -169,6 +169,7 @@ impl<'a> CommandList<'a> {
         if !path_data.is_empty() {
             result.push(transform);
             result.push(CommandSegment::Path(path_data));
+            result.push(CommandSegment::Fill(block.fill.clone()));
         }
         result
     }
