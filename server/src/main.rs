@@ -25,7 +25,7 @@ use serde_json::Value as JsonValue;
 pub mod svg_util;
 pub mod draw;
 
-static FONT_UPDATE_DATA: &'static str = "/Users/suti/start/text-render-rust/server/test/";
+static FONT_UPDATE_DATA: &'static str = "/opt/chuangkit.font.cache/data.json";
 
 type AF = Arc<Mutex<FontCache<Vec<u8>>>>;
 
