@@ -6,6 +6,7 @@ use super::open_type_like::bbox::{BBox, BBoxes};
 use super::open_type_like::word::Word;
 
 use std::collections::HashMap;
+use crate::data::text_data::WritingMode;
 
 pub trait MergedFont {
     fn char_to_glyph<'a>(&'a self, font_name: String, char: char) -> &'a Box<Glyph>;
@@ -33,6 +34,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
 
     let mut mix_text_data = Vec::<Vec<(TextBlock, TextBlockDetail)>>::new();
     let ParagraphData {
+        writing_mode,
         art_text: _,
         paragraph_content,
         paragraph_spacing,
@@ -77,6 +79,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
                     position: (0f32, 0f32),
                     base_line_to_top: 0f32,
                     base_line_to_bottom: 0f32,
+                    writing_mode: writing_mode.clone(),
                 };
                 let mut new_text_block = block.clone();
                 new_text_block.text = text.to_string();
@@ -90,7 +93,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
 
     for item in mix_text_data.concat().iter() {
         let (b, d) = item;
-        let width = d.glyph.get_advance_width(b.font_size as f32);
+        let width = d.glyph.get_spacing(b.font_size as f32, writing_mode);
         if width > min_width {
             min_width = width;
         }
@@ -109,7 +112,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     let mut mix_word_data_wrapped = Vec::<Vec<Word>>::new();
 
     for x in &mix_word_data {
-        let result = compute_auto_wrap(width, x);
+        let result = compute_auto_wrap(width, x, writing_mode);
         for line in result {
             mix_word_data_wrapped.push(line);
         }
@@ -145,15 +148,15 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     Some((mat_data, commands, min_width))
 }
 
-fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>) -> Vec<Vec<Word<'a>>> {
+fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>, writing_mode: &WritingMode) -> Vec<Vec<Word<'a>>> {
     let mut wrapped_all = Vec::<Vec<Word>>::new();
     let wrapped_words = words.iter().map(|word| {
-        let word_width = word.get_advance_width();
+        let word_width = word.get_spacing();
         if limit < word_width.ceil() as f32 {
             let mut split_words = Vec::<Word>::new();
             let mut split_letters = Vec::<(TextBlock, TextBlockDetail)>::new();
             word.iter().fold(0f32, |p, c| {
-                let c_width = c.1.glyph.get_advance_width(c.0.font_size as f32) + c.0.font_size as f32 * c.0.letter_spacing as f32;
+                let c_width = c.1.glyph.get_spacing(c.0.font_size as f32, writing_mode) + c.0.font_size as f32 * c.0.letter_spacing as f32;
                 if (p + c_width).ceil() as f32 > limit {
                     if split_letters.len() > 0 {
                         split_words.push(Word { letters: split_letters.splice(.., vec![]).collect() });
@@ -181,7 +184,7 @@ fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>) -> Vec<Vec<Word<'a>>
     }
 
     flat_wrapped_words.iter().fold(0f32, |p, c| {
-        let word_width = c.get_advance_width();
+        let word_width = c.get_spacing();
         if (p + word_width).ceil() > limit as f32 {
             wrapped_all.push(vec![c.clone()]);
             return word_width;
@@ -246,7 +249,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let mut line_width = {
         let mut width = 0f32;
         for item in line_data {
-            width += item.get_advance_width();
+            width += item.get_spacing();
         }
         width
     };
@@ -306,7 +309,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
                 } else {
                     letter.0.letter_spacing
                 };
-            let advance_width = letter.1.glyph.get_advance_width(font_size as f32);
+            let advance_width = letter.1.glyph.get_spacing(font_size as f32, &letter.1.writing_mode);
             let paragraph_indentation = letter.1.paragraph_indentation;
             let mut b_width = advance_width + font_size as f32 * letter_spacing as f32;
 

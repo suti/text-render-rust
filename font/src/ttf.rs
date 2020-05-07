@@ -16,8 +16,8 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
         }
     }
 
-    pub fn get_glyph(&self, index: u32) -> Glyph {
-        let index = self.find_glyph_index(index);
+    pub fn get_glyph(&self, char_code: u32) -> Glyph {
+        let index = self.find_glyph_index(char_code);
         if index == 0 {
             return Glyph::get_none();
         }
@@ -31,6 +31,7 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
             units_per_em,
             ascender,
             descender,
+            char_code: Some(char_code)
         }
     }
 }

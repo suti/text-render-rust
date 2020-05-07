@@ -2,6 +2,7 @@ use svgtypes::{PathParser, PathSegment};
 
 use super::path::PathData;
 use super::transform::Transform;
+use crate::data::text_data::WritingMode;
 
 #[derive(Debug, Clone)]
 pub struct Glyph {
@@ -10,6 +11,11 @@ pub struct Glyph {
     pub units_per_em: i32,
     pub ascender: i32,
     pub descender: i32,
+    pub char_code: Option<u32>,
+}
+
+fn is_orientation(char_code: u32) -> bool {
+    char_code > 32 && char_code < 126
 }
 
 impl Glyph {
@@ -27,6 +33,7 @@ impl Glyph {
             units_per_em,
             ascender,
             descender,
+            char_code: None,
         })
     }
 
@@ -37,17 +44,18 @@ impl Glyph {
             units_per_em: 1000i32,
             ascender: 900i32,
             descender: -100i32,
+            char_code: None,
         }
     }
 
     pub fn to_path(&self) -> String {
-        String::from("")
+        String::from(&self.path)
     }
 
-    pub fn get_path(&self, x: f32, y: f32, font_size: f32) -> PathData {
+    pub fn get_path(&self, x: f32, y: f32, font_size: f32, writing_mode: &WritingMode) -> PathData {
         let mut path_data = self.path.clone();
         let scale = 1.0f32 / (self.units_per_em as f32) * font_size;
-        let transform = Transform {
+        let mut transform = Transform {
             a: scale,
             b: 0.0f32,
             c: 0.0f32,
@@ -55,12 +63,43 @@ impl Glyph {
             e: x,
             f: y,
         };
+        match writing_mode {
+            WritingMode::HorizontalTB => (),
+            _ => if self.char_code
+                .and_then(|c| Some(is_orientation(c)))
+                .unwrap_or(false)
+            {
+                transform.rotate(-90.0);
+            }
+        }
         path_data.transform(transform);
         path_data
     }
 
     pub fn get_advance_width(&self, font_size: f32) -> f32 {
         (self.advance_width as f32) / (self.units_per_em as f32) * font_size
+    }
+
+    pub fn get_advance_height(&self, font_size: f32) -> f32 {
+        if self.advance_width == 0 {
+            0.0
+        } else {
+            ((self.ascender - self.descender) / self.units_per_em) as f32 * font_size
+        }
+    }
+
+    pub fn get_spacing(&self, font_size: f32, writing_mode: &WritingMode) -> f32 {
+        match writing_mode {
+            WritingMode::HorizontalTB => self.get_advance_width(font_size),
+            _ => if self.char_code
+                .and_then(|c| Some(is_orientation(c)))
+                .unwrap_or(false)
+            {
+                self.get_advance_width(font_size)
+            } else {
+                self.get_advance_height(font_size)
+            }
+        }
     }
 }
 
@@ -72,6 +111,7 @@ impl Default for Glyph {
             units_per_em: 0,
             ascender: 0,
             descender: 0,
+            char_code: None,
         }
     }
 }

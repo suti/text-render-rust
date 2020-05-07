@@ -25,7 +25,7 @@ use serde_json::Value as JsonValue;
 pub mod svg_util;
 pub mod draw;
 
-static FONT_UPDATE_DATA: &'static str = "/opt/chuangkit.font.cache/data.json";
+static FONT_UPDATE_DATA: &'static str = "/Users/suti/start/text-render-rust/server/test/";
 
 type AF = Arc<Mutex<FontCache<Vec<u8>>>>;
 
@@ -106,7 +106,9 @@ async fn main() {
                 let art_text = text_data.paragraph.art_text.unwrap();
                 if art_text.texture.is_some() {
                     let texture = art_text.texture.unwrap();
-                    fetch_async(&texture).await
+                    let result = fetch_async(&texture).await;
+                    if result.is_none() { return Err(warp::reject::custom(ProcessError(format!("下载艺术字纹理失败, {:?}", &texture)))); }
+                    result
                 } else { None }
             } else { None };
             Ok((json, texture_raw, start))
@@ -154,10 +156,7 @@ async fn main() {
             let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
             let glyph_cache_count = font_cache.get_glyph_cache_count();
             let font_cache_count = font_cache.get_font_cache_count();
-            format!("\
-                graph_cache_count: {};
-                font_cache_count: {};
-            ", glyph_cache_count, font_cache_count)
+            format!("graph_cache_count: {}, font_cache_count: {}", glyph_cache_count, font_cache_count)
         });
 
     let routes = warp::post().and(convert_command.or(convert_svg).or(info));

@@ -30,6 +30,13 @@ pub enum ShadowOption {
 }
 
 #[derive(Debug, Clone)]
+pub enum WritingMode {
+    HorizontalTB,
+    VerticalRL,
+    VerticalLR,
+}
+
+#[derive(Debug, Clone)]
 pub struct ParagraphContent {
     pub line_height: f32,
     pub paragraph_indentation: f32,
@@ -38,6 +45,7 @@ pub struct ParagraphContent {
 
 #[derive(Debug, Clone)]
 pub struct ParagraphData {
+    pub writing_mode: WritingMode,
     pub text_align: String,
     pub resizing: String,
     pub align: String,
@@ -86,6 +94,7 @@ pub struct TextData {
 #[derive(Debug, Clone)]
 pub struct TextBlockDetail<'a> {
     pub glyph: &'a Glyph,
+    pub writing_mode: WritingMode,
     pub paragraph_indentation: f32,
     pub line_height: f32,
     pub text_align: String,
@@ -102,6 +111,7 @@ impl<'a> TextBlockDetail<'a> {
     pub fn default(glyph: &'a Glyph) -> Self {
         TextBlockDetail {
             glyph,
+            writing_mode: WritingMode::HorizontalTB,
             paragraph_indentation: 0.0,
             line_height: 0.0,
             text_align: "".to_string(),
@@ -171,6 +181,15 @@ impl TextData {
         let default_paragraph_spacing = Value::Number(serde_json::Number::from_f64(0.0).unwrap());
         let paragraph_spacing = paragraph_json.get("paragraphSpacing").unwrap_or(&default_paragraph_spacing).as_f64().unwrap_or(0.0) as f32;
         let mut art_text: Option<ArtTextOption> = None;
+
+        let writing_mode = paragraph_json.get("writingMode")
+            .and_then(|value| value.as_str())
+            .and_then(|s| match s {
+                "horizontal-tb" => Some(WritingMode::HorizontalTB),
+                "vertical-rl" => Some(WritingMode::VerticalRL),
+                "vertical-lr" => Some(WritingMode::VerticalLR),
+                _ => None
+            }).unwrap_or(WritingMode::HorizontalTB);
 
         if paragraph_json.get("advancedData").unwrap_or_else(|| &Value::Null).as_object().is_some() {
             let art_text_json = paragraph_json.get("advancedData").unwrap().as_object().unwrap();
@@ -442,6 +461,7 @@ impl TextData {
             paragraph_spacing,
             paragraph_content,
             art_text,
+            writing_mode,
         };
 
         Some(TextData {

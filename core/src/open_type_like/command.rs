@@ -123,7 +123,7 @@ impl<'a> CommandList<'a> {
         let mut paths = HashMap::<(String, u32), PathData>::new();
         for item in self.iter() {
             let (b, d) = item;
-            let path = d.glyph.get_path(0f32, 0f32, 100f32);
+            let path = d.glyph.get_path(0f32, 0f32, 100f32, &d.writing_mode);
             let font_family = &b.font_family;
             let mut chars = b.text.chars();
             while let Some(text) = chars.next() {
