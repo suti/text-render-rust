@@ -253,7 +253,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
             let mut n = Vec::<(String, String)>::new();
             for (k, v) in stop.iter() {
                 let color: Color = v.clone().into();
-                n.push((k.to_string(), color.to_rgba()));
+                n.push((k.to_string(), color.to_rgb()));
             }
             n
         };

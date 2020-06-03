@@ -7,11 +7,11 @@
 在mac上交叉编辑linux需要：
 ```$xslt
 brew install FiloSottile/musl-cross/musl-cross
-brew install mingw-w64 
 echo "[target.x86_64-unknown-linux-musl]" >> ~/.cargo/config
 echo "linker = 'x86_64-linux-musl-gcc'" >> ~/.cargo/config
 rustup target add x86_64-unknown-linux-musl
 ```
+https://github.com/FiloSottile/homebrew-musl-cross
 
 ## deploy wasm for browser:
 

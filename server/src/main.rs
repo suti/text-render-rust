@@ -55,7 +55,8 @@ async fn main() {
     thread::spawn(move || {
         let (tx, rx) = channel();
         let mut watcher = watcher(tx, Duration::from_secs_f32(0.1)).unwrap();
-        watcher.watch(FONT_UPDATE_DATA, RecursiveMode::Recursive).unwrap();
+        let w = watcher.watch(FONT_UPDATE_DATA, RecursiveMode::Recursive);
+        if w.is_err() { return println!("watch error: {:?}", w); }
         loop {
             match rx.recv() {
                 Ok(event) => {
@@ -225,7 +226,9 @@ fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_updat
 }
 
 fn update_font_update_map() -> JsonValue {
-    let mut read = File::open(FONT_UPDATE_DATA).unwrap();
+    let read = File::open(FONT_UPDATE_DATA);
+    if read.is_err() { return JsonValue::Null; }
+    let mut read = read.unwrap();
     let mut font_update_data = String::from("");
     let r = read.read_to_string(&mut font_update_data);
     if r.is_err() { return JsonValue::Null; }
