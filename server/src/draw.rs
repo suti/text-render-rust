@@ -207,8 +207,8 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
 
     let mut use_clip = create_use_tag(into_str![&uuid, "-path"]);
     use_clip.assign("fill", "#ffffff");
-    let mask = create_mask_tag(vec![use_clip], into_str![&uuid, "-mask"]);
-    defs.append(mask);
+    let clip_path = create_clip_tag(vec![use_clip], into_str![&uuid, "-clip"]);
+    defs.append(clip_path);
 
     if texture.is_some() {
         let texture = texture.unwrap();
@@ -242,7 +242,8 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
             image.assign("width", cw);
             image.assign("height", ch);
             let mut g = group(vec![image]);
-            g.assign("mask", format!("url(#{}-mask)", &uuid));
+            g.assign("clip-path", format!("url(#{}-clip)", &uuid));
+            g.assign("clip-rule", "nonzero");
             content.append(g);
         }
     }
@@ -263,7 +264,8 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         let mut rect = create_rect_tag(width, height, 0f32, 0f32);
         rect.assign("fill", format!("url(#{}-linear)", &uuid));
         let mut g = group(vec![rect]);
-        g.assign("mask", format!("url(#{}-mask)", &uuid));
+        g.assign("clip-path", format!("url(#{}-clip)", &uuid));
+        g.assign("clip-rule", "nonzero");
         content.append(g);
     }
 

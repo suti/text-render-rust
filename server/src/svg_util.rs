@@ -102,6 +102,15 @@ pub mod svg_methods {
         mask_tag
     }
 
+    pub fn create_clip_tag(elements: Vec<Element>, id: String) -> Element {
+        let mut clip_tag = Element::new("clipPath");
+        clip_tag.assign("id", id);
+        for element in elements {
+            clip_tag.append(element);
+        }
+        clip_tag
+    }
+
     pub fn apply_shadow(defs: &mut Element, element: &mut Element, color: (u8, u8, u8, f32), offset: (f32, f32), blur: f32) {
         let mut filter = create_filter_tag();
         let (r, g, b, a) = color;
