@@ -1,6 +1,6 @@
 use warp::Filter;
 use bytes::Bytes;
-use core::data::text_data::TextData;
+use core::data::text_data::{TextData, WritingMode};
 use core::typesetting::compute_render_command;
 use core::open_type_like::bbox::BBoxes;
 use core::open_type_like::command::{tran_commands_stream, CommandsList};
@@ -133,10 +133,17 @@ async fn main() {
             };
             let b_box = b_boxes.get_total_box();
             let mut width = b_box.get_width().ceil() as f32;
-            let height = b_box.get_height().ceil() as f32;
-            if text_data.width > width {
-                width = text_data.width
+            let mut height = b_box.get_height().ceil() as f32;
+
+            match &text_data.paragraph.writing_mode {
+                &WritingMode::HorizontalTB => if text_data.width > width {
+                    width = text_data.width
+                },
+                _ => if text_data.height > height {
+                    height = text_data.height
+                },
             }
+
             let svg = if text_data.paragraph.art_text.is_some() {
                 let art_text = text_data.paragraph.art_text.unwrap();
                 draw::exec_art_text(&commands, width, height, ref_size, art_text, texture_raw)

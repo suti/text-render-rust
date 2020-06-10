@@ -12,14 +12,15 @@ pub struct Glyph {
     pub ascender: i32,
     pub descender: i32,
     pub char_code: Option<u32>,
+    pub left_side_bearing: i32,
 }
 
 fn is_orientation(char_code: u32) -> bool {
-    char_code > 32 && char_code < 126
+    char_code > 32 && char_code < 126 || char_code == 32
 }
 
 impl Glyph {
-    pub fn parse(source: &str, advance_width: i32, units_per_em: i32, ascender: i32, descender: i32) -> Option<Glyph> {
+    pub fn parse(source: &str, advance_width: i32, units_per_em: i32, ascender: i32, descender: i32, left_side_bearing: i32) -> Option<Glyph> {
         let result = PathParser::from(source);
         let mut path_data = PathData::new();
         for d_r in result {
@@ -33,6 +34,7 @@ impl Glyph {
             units_per_em,
             ascender,
             descender,
+            left_side_bearing,
             char_code: None,
         })
     }
@@ -44,6 +46,7 @@ impl Glyph {
             units_per_em: 1000i32,
             ascender: 900i32,
             descender: -100i32,
+            left_side_bearing: 0,
             char_code: None,
         }
     }
@@ -70,6 +73,10 @@ impl Glyph {
                 .unwrap_or(false)
             {
                 transform.rotate(-90.0);
+            } else {
+                let dx = -0.05 * font_size / scale;
+                let dy = -self.ascender as f32 / (self.ascender as f32 - self.descender as f32) * font_size / scale;
+                transform.translate(dx, dy)
             }
         }
         path_data.transform(transform);
@@ -111,6 +118,7 @@ impl Default for Glyph {
             units_per_em: 0,
             ascender: 0,
             descender: 0,
+            left_side_bearing: 0,
             char_code: None,
         }
     }

@@ -14,7 +14,7 @@ pub trait MergedFont {
 
 pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> Option<(BBoxes, (HashMap<(String, u32), PathData>, Vec<CommandSegment>), f32)> {
     let mut width = text_data.width;
-    let height = text_data.height;
+    let mut height = text_data.height;
     let mut font_glyph = HashMap::<(String, String), &Box<Glyph>>::new();
     for pc in text_data.paragraph.paragraph_content.iter() {
         for b in pc.blocks.iter() {
@@ -105,14 +105,26 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
         mix_word_data.push(result);
     }
 
-    if min_width > width as f32 {
-        width = min_width.ceil();
-    }
 
     let mut mix_word_data_wrapped = Vec::<Vec<Word>>::new();
 
+    let limit_width = match writing_mode {
+        WritingMode::HorizontalTB => {
+            if min_width > width as f32 {
+                width = min_width.ceil();
+            }
+            width
+        }
+        _ => {
+            if min_width > height as f32 {
+                height = min_width.ceil();
+            }
+            height
+        }
+    };
+
     for x in &mix_word_data {
-        let result = compute_auto_wrap(width, x, writing_mode);
+        let result = compute_auto_wrap(limit_width, x, writing_mode);
         for line in result {
             mix_word_data_wrapped.push(line);
         }
@@ -121,9 +133,22 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     std::mem::drop(mix_word_data);
 
     let mut l_index = 0usize;
+    let (width, height) = mix_word_data_wrapped.iter().fold(match writing_mode {
+        WritingMode::HorizontalTB => (width, 0.0),
+        _ => (0.0, height)
+    }, |p, c| {
+        let (lw, lh) = compute_box(c, l_index, width, height);
+        l_index += 1;
+        match writing_mode {
+            WritingMode::HorizontalTB => (p.0, p.1 + lh),
+            _ => (p.0 + lw, p.1)
+        }
+    });
+
+    let mut l_index = 0usize;
     let mut mix_letter_data_width_position = Vec::<(TextBlock, TextBlockDetail)>::new();
     mix_word_data_wrapped.iter().fold((width as f32, height as f32, text_align.to_string(), 0f32), |p, c| {
-        let (result, option) = compute_glyph_position(c, p, l_index);
+        let (result, option) = compute_glyph_position(c, p, l_index, writing_mode);
         for item in result {
             mix_letter_data_width_position.push(item);
         }
@@ -135,11 +160,18 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
 
     let mut mat_data = BBoxes::new();
     mix_letter_data_width_position.iter().for_each(|letter| {
-        let w = letter.1.b_width;
         let (x, y) = letter.1.position;
+        let w = letter.1.b_width;
         let t = letter.1.base_line_to_top;
         let b = letter.1.base_line_to_bottom;
-        mat_data.push(BBox::new(x.into(), (y - t).into(), (x + w).into(), (y + b).into()));
+        mat_data.push(match writing_mode {
+            &WritingMode::HorizontalTB => {
+                BBox::new(x.into(), (y - t).into(), (x + w).into(), (y + b).into())
+            }
+            _ => {
+                BBox::new((x - b).into(), y.into(), (x + t).into(), (y + w).into())
+            }
+        })
     });
 
     let command_list = CommandList::new(&mix_letter_data_width_position);
@@ -221,8 +253,40 @@ fn get_max_item<'a>(line_data: &'a Vec<Word<'a>>) -> &'a (TextBlock, TextBlockDe
     target_point
 }
 
+fn compute_box(line_data: &Vec<Word>, index: usize, width: f32, height: f32) -> (f32, f32) {
+    if line_data.len() == 0 { return (0.0, 0.0); }
+    let mut font_size = 0f32;
+    let mut max_letter: &(TextBlock, TextBlockDetail) = get_max_item(line_data);
+    for word in line_data.iter() {
+        for letter in word.letters.iter() {
+            if letter.0.font_size > font_size {
+                font_size = letter.0.font_size;
+                max_letter = letter;
+            }
+        }
+    }
+
+    let writing_mode = &max_letter.1.writing_mode;
+    let max_font_size = max_letter.0.font_size;
+    let ascender = max_letter.1.glyph.ascender;
+    let descender = if max_letter.1.glyph.descender < 0 { max_letter.1.glyph.descender } else { -max_letter.1.glyph.descender };
+    let line_height = max_letter.1.line_height;
+
+    let line_height_padding = (line_height - 1f32) * max_font_size as f32 / 2f32;
+    let base_line_to_top = max_font_size as f32 * (ascender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
+    let base_line_to_bottom = max_font_size as f32 * (-descender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
+
+    let len = base_line_to_top + if index == 0usize { 0f32 } else { base_line_to_bottom };
+
+    match writing_mode {
+        &WritingMode::HorizontalTB => (width, len),
+        &WritingMode::VerticalLR => (len, height),
+        &WritingMode::VerticalRL => (len, height),
+    }
+}
+
 /// 计算每个字形的位置
-fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, String, f32), index: usize) -> (Vec<(TextBlock, TextBlockDetail<'a>)>, (f32, f32, String, f32)) {
+fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, String, f32), index: usize, writing_mode: &WritingMode) -> (Vec<(TextBlock, TextBlockDetail<'a>)>, (f32, f32, String, f32)) {
     let (width, height, text_align, mut offset) = option;
     let mut flat_data = Vec::<(TextBlock, TextBlockDetail)>::new();
     if line_data.len() == 0 { return (flat_data, (width, height, text_align, offset)); }
@@ -241,11 +305,11 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let ascender = max_letter.1.glyph.ascender;
     let descender = if max_letter.1.glyph.descender < 0 { max_letter.1.glyph.descender } else { -max_letter.1.glyph.descender };
     let line_height = max_letter.1.line_height;
+
     let line_height_padding = (line_height - 1f32) * max_font_size as f32 / 2f32;
     let base_line_to_top = max_font_size as f32 * (ascender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
     let base_line_to_bottom = max_font_size as f32 * (-descender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
 
-    let mut start_position = (0f32, base_line_to_top + offset + if index == 0usize { 0f32 } else { base_line_to_bottom });
     let mut line_width = {
         let mut width = 0f32;
         for item in line_data {
@@ -256,6 +320,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let word = Word {
         letters: Vec::new()
     };
+
     let ttb: TextBlock = Default::default();
     let temp_glyph = Default::default();
     let ttd = TextBlockDetail::default(&temp_glyph);
@@ -263,7 +328,10 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let default_letter = (ttb, ttd);
     let (ttb, _ttd) = word.letters.last().unwrap_or(&default_letter);
     line_width -= ttb.letter_spacing * ttb.font_size;
-    let diff_width = width - line_width;
+    let diff_width = match writing_mode {
+        &WritingMode::HorizontalTB => width - line_width,
+        _ => height - line_width,
+    };
     let mut padding_left = 0f32;
     let mut text_align_result = JustifyText::None;
 
@@ -297,7 +365,11 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
 
     let mut l_index = 0usize;
 
-    start_position.0 += padding_left;
+    let mut start_position = match writing_mode {
+        &WritingMode::HorizontalTB => (0f32 + padding_left, base_line_to_top + offset + if index == 0usize { 0f32 } else { base_line_to_bottom }),
+        &WritingMode::VerticalLR => (base_line_to_bottom + offset + if index == 0usize { 0f32 } else { base_line_to_top }, 0f32 + padding_left),
+        &WritingMode::VerticalRL => (width - (base_line_to_top + offset + if index == 0usize { 0f32 } else { base_line_to_bottom }), 0f32 + padding_left)
+    };
 
     line_data.iter().for_each(|word| {
         let mut w_index = 0usize;
@@ -309,7 +381,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
                 } else {
                     letter.0.letter_spacing
                 };
-            let advance_width = letter.1.glyph.get_spacing(font_size as f32, &letter.1.writing_mode);
+            let advance_width = letter.1.glyph.get_spacing(font_size as f32, writing_mode);
             let paragraph_indentation = letter.1.paragraph_indentation;
             let mut b_width = advance_width + font_size as f32 * letter_spacing as f32;
 
@@ -326,7 +398,10 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
                 }
                 JustifyText::None => {}
             };
-            start_position.0 += paragraph_indentation as f32;
+            match writing_mode {
+                &WritingMode::HorizontalTB => { start_position.0 += paragraph_indentation as f32; }
+                _ => { start_position.1 += paragraph_indentation as f32; }
+            };
             let text_block = letter.0.clone();
             let mut text_block_detail = letter.1.clone();
             text_block_detail.b_width = b_width.into();
@@ -334,11 +409,24 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
             text_block_detail.base_line_to_top = base_line_to_top;
             text_block_detail.base_line_to_bottom = base_line_to_bottom;
             flat_data.push((text_block, text_block_detail));
-            start_position.0 += b_width as f32;
+            match writing_mode {
+                &WritingMode::HorizontalTB => { start_position.0 += b_width as f32; }
+                _ => { start_position.1 += b_width as f32; }
+            };
             w_index += 1;
         });
         l_index += 1;
     });
-    offset += base_line_to_top + if index == 0 { 0f32 } else { base_line_to_bottom };
+    offset += match writing_mode {
+        &WritingMode::HorizontalTB => {
+            base_line_to_top + if index == 0 { 0f32 } else { base_line_to_bottom }
+        }
+        &WritingMode::VerticalLR => {
+            base_line_to_top + if index == 0 { 0f32 } else { base_line_to_bottom }
+        }
+        &WritingMode::VerticalRL => {
+            base_line_to_top + if index == 0 { 0f32 } else { base_line_to_bottom }
+        }
+    };
     (flat_data, (width, height, text_align, offset))
 }

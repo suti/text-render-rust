@@ -23,7 +23,7 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
         }
         let stt::VMetrics { ascent: ascender, descent: descender, line_gap: _ } = self.get_v_metrics();
         let path_vertex = self.get_glyph_shape(index).unwrap_or(vec![]);
-        let stt::HMetrics { advance_width, left_side_bearing: _ } = self.get_glyph_h_metrics(index);
+        let stt::HMetrics { advance_width, left_side_bearing } = self.get_glyph_h_metrics(index);
         let units_per_em = self.units_per_em() as i32;
         Glyph {
             path: vertex_to_path_data(&path_vertex),
@@ -31,6 +31,7 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
             units_per_em,
             ascender,
             descender,
+            left_side_bearing,
             char_code: Some(char_code)
         }
     }

@@ -6,6 +6,7 @@ use super::transform::Transform;
 use std::f64::consts::PI;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use crate::data::text_data::WritingMode;
 
 macro_rules! join_str {
     ( $( $x:expr ),* ) => {
@@ -148,23 +149,45 @@ impl<'a> CommandList<'a> {
         let font_size = block.font_size;
         let (x, mut y) = detail.position;
         let b_width = detail.b_width;
+        let writing_mode = &detail.writing_mode;
         let line_width = 0.04f32 * font_size as f32;
         y += line_width;
         let transform = CommandSegment::Transform(Default::default(), true);
         let mut path_data = PathData::new();
-        match decoration.as_ref() {
-            "line-through" => {}
-            "overline" => {}
-            "underline" => {
-                path_data.move_to(x as f32, y as f32);
-                path_data.line_to((x + b_width) as f32, y as f32);
-                path_data.line_to((x + b_width) as f32, y + line_width as f32);
-                path_data.line_to(x as f32, y + line_width as f32);
-                path_data.line_to(x as f32, y as f32);
-                path_data.close();
+
+        match writing_mode {
+            &WritingMode::HorizontalTB => {
+                match decoration.as_ref() {
+                    "line-through" => {}
+                    "overline" => {}
+                    "underline" => {
+                        path_data.move_to(x, y);
+                        path_data.line_to(x + b_width, y);
+                        path_data.line_to(x + b_width, y + line_width);
+                        path_data.line_to(x, y + line_width);
+                        path_data.line_to(x, y);
+                        path_data.close();
+                    }
+                    _ => {}
+                }
             }
-            _ => {}
+            _ => {
+                match decoration.as_ref() {
+                    "line-through" => {}
+                    "overline" => {}
+                    "underline" => {
+                        path_data.move_to(x, y);
+                        path_data.line_to(x, y + b_width);
+                        path_data.line_to(x + line_width, y + b_width);
+                        path_data.line_to(x + line_width, y);
+                        path_data.line_to(x, y);
+                        path_data.close();
+                    }
+                    _ => {}
+                }
+            }
         }
+
         let mut result = Vec::<CommandSegment>::new();
         if !path_data.is_empty() {
             result.push(transform);

@@ -57,7 +57,7 @@ impl FontData {
             let detail = get_array(item)?;
             let advance_width = detail.get(0)?.as_i32()?;
             let glyph_str = detail.get(1)?.as_str()?.to_string();
-            let glyph: Box<Glyph> = Box::new(Glyph::parse(&glyph_str, advance_width, units_per_em, ascender, descender)?);
+            let glyph: Box<Glyph> = Box::new(Glyph::parse(&glyph_str, advance_width, units_per_em, ascender, descender, 0)?);
             glyphs_pack.push((advance_width, glyph));
         }
 
