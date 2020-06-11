@@ -67,7 +67,7 @@ impl Executor {
             }
         }
 
-        let (b_boxes, result, min_width) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0));
+        let (b_boxes, result, min_width, _) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0,20.0)));
         let b_box = b_boxes.get_total_box();
         let mut width = b_box.get_width().ceil() as f32;
         let height = b_box.get_height().ceil() as f32;

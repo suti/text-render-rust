@@ -12,7 +12,7 @@ pub trait MergedFont {
     fn char_to_glyph<'a>(&'a self, font_name: String, char: char) -> &'a Box<Glyph>;
 }
 
-pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> Option<(BBoxes, (HashMap<(String, u32), PathData>, Vec<CommandSegment>), f32)> {
+pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> Option<(BBoxes, (HashMap<(String, u32), PathData>, Vec<CommandSegment>), f32, (f32, f32))> {
     let mut width = text_data.width;
     let mut height = text_data.height;
     let mut font_glyph = HashMap::<(String, String), &Box<Glyph>>::new();
@@ -132,13 +132,11 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
 
     std::mem::drop(mix_word_data);
 
-    let mut l_index = 0usize;
     let (width, height) = mix_word_data_wrapped.iter().fold(match writing_mode {
         WritingMode::HorizontalTB => (width, 0.0),
         _ => (0.0, height)
     }, |p, c| {
-        let (lw, lh) = compute_box(c, l_index, width, height);
-        l_index += 1;
+        let (lw, lh) = compute_box(c, width, height);
         match writing_mode {
             WritingMode::HorizontalTB => (p.0, p.1 + lh),
             _ => (p.0 + lw, p.1)
@@ -177,7 +175,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
     let command_list = CommandList::new(&mix_letter_data_width_position);
     let commands = command_list.get_commands();
 
-    Some((mat_data, commands, min_width))
+    Some((mat_data, commands, min_width, (width, height)))
 }
 
 fn compute_auto_wrap<'a>(limit: f32, words: &Vec<Word<'a>>, writing_mode: &WritingMode) -> Vec<Vec<Word<'a>>> {
@@ -253,7 +251,7 @@ fn get_max_item<'a>(line_data: &'a Vec<Word<'a>>) -> &'a (TextBlock, TextBlockDe
     target_point
 }
 
-fn compute_box(line_data: &Vec<Word>, index: usize, width: f32, height: f32) -> (f32, f32) {
+fn compute_box(line_data: &Vec<Word>, width: f32, height: f32) -> (f32, f32) {
     if line_data.len() == 0 { return (0.0, 0.0); }
     let mut font_size = 0f32;
     let mut max_letter: &(TextBlock, TextBlockDetail) = get_max_item(line_data);
@@ -276,7 +274,7 @@ fn compute_box(line_data: &Vec<Word>, index: usize, width: f32, height: f32) -> 
     let base_line_to_top = max_font_size as f32 * (ascender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
     let base_line_to_bottom = max_font_size as f32 * (-descender as f32 / (ascender as f32 - descender as f32)) + line_height_padding as f32;
 
-    let len = base_line_to_top + if index == 0usize { 0f32 } else { base_line_to_bottom };
+    let len = base_line_to_top + base_line_to_bottom;
 
     match writing_mode {
         &WritingMode::HorizontalTB => (width, len),
@@ -368,7 +366,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
     let mut start_position = match writing_mode {
         &WritingMode::HorizontalTB => (0f32 + padding_left, base_line_to_top + offset + if index == 0usize { 0f32 } else { base_line_to_bottom }),
         &WritingMode::VerticalLR => (base_line_to_bottom + offset + if index == 0usize { 0f32 } else { base_line_to_top }, 0f32 + padding_left),
-        &WritingMode::VerticalRL => (width - (base_line_to_top + offset + if index == 0usize { 0f32 } else { base_line_to_bottom }), 0f32 + padding_left)
+        &WritingMode::VerticalRL => (width - (base_line_to_top + offset), 0f32 + padding_left)
     };
 
     line_data.iter().for_each(|word| {
@@ -425,7 +423,7 @@ fn compute_glyph_position<'a>(line_data: &Vec<Word<'a>>, option: (f32, f32, Stri
             base_line_to_top + if index == 0 { 0f32 } else { base_line_to_bottom }
         }
         &WritingMode::VerticalRL => {
-            base_line_to_top + if index == 0 { 0f32 } else { base_line_to_bottom }
+            base_line_to_top + base_line_to_bottom
         }
     };
     (flat_data, (width, height, text_align, offset))

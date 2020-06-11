@@ -82,7 +82,7 @@ async fn main() {
             let json = json.unwrap();
             let result = cc(&json, &font_cache, &font_update_map_in_warp);
             if result.is_none() { return warp::http::Response::builder().status(500).body(String::from("解析文字数据失败")).unwrap(); }
-            let (min_width, b_boxes, commands, _) = result.unwrap();
+            let (min_width, b_boxes, commands, _, _) = result.unwrap();
             let b_boxes: Vec<f32> = (&b_boxes).into();
             let commands: Vec<f32> = (&commands).into();
             let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
@@ -120,7 +120,7 @@ async fn main() {
             let (json, texture_raw, start) = result;
             let result = cc(&json, &font_cache, &font_update_map_in_warp);
             if result.is_none() { return warp::http::Response::builder().status(500).body(String::from("解析文字数据失败")).unwrap(); }
-            let (_min_width, b_boxes, commands, text_data) = result.unwrap();
+            let (_min_width, _b_boxes, commands, text_data, (width, height)) = result.unwrap();
             let ref_size = {
                 let mut size = 16f32;
                 if text_data.paragraph.paragraph_content.get(0).is_some() {
@@ -131,9 +131,8 @@ async fn main() {
                 }
                 size
             };
-            let b_box = b_boxes.get_total_box();
-            let mut width = b_box.get_width().ceil() as f32;
-            let mut height = b_box.get_height().ceil() as f32;
+            let mut width = width;
+            let mut height = height;
 
             match &text_data.paragraph.writing_mode {
                 &WritingMode::HorizontalTB => if text_data.width > width {
@@ -173,7 +172,7 @@ async fn main() {
     warp::serve(routes).run(([0, 0, 0, 0], 8210)).await;
 }
 
-fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>>) -> Option<(f32, BBoxes, CommandsList, TextData)> {
+fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>>) -> Option<(f32, BBoxes, CommandsList, TextData, (f32, f32))> {
     let mut font_cache = &mut *font_cache.lock().unwrap();
     let text_data = TextData::parse(&json);
     if text_data.is_none() { return None; }
@@ -192,10 +191,10 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>
         }
     }
 
-    let (b_boxes, result, min_width) = compute_render_command(&text_data, font_cache).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0));
+    let (b_boxes, result, min_width, rect) = compute_render_command(&text_data, font_cache).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0, 20.0)));
     let commands = tran_commands_stream(&result);
 
-    Some((min_width, b_boxes, commands, text_data))
+    Some((min_width, b_boxes, commands, text_data, rect))
 }
 
 fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mutex<FontUpdateMap>>) {

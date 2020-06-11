@@ -91,7 +91,7 @@ mod tests {
             font_data_ref.insert(ff.clone(), font_data.clone());
         }
         let text_data = TextData::parse(&test_text_json).unwrap();
-        let (b_box, result, _) = compute_render_command(&text_data, &font_data_ref).unwrap();
+        let (b_box, result, _, _) = compute_render_command(&text_data, &font_data_ref).unwrap();
         let b_box = b_box.get_total_box();
         let mut width = b_box.get_width().ceil() as f32;
         let height = b_box.get_height().ceil() as f32;
