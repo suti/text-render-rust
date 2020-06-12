@@ -17,7 +17,7 @@ use core::open_type_like::command::{tran_commands_stream, CommandSegment};
 use core::open_type_like::bbox::{BBox, BBoxes};
 use core::typesetting::{compute_render_command, MergedFont};
 use core::data::font_data::FontData;
-use core::data::text_data::TextData;
+use core::data::text_data::{TextData, WritingMode};
 use core::open_type_like::glyph::Glyph;
 use font::ttf::FontCache;
 use font::check::check_type;
@@ -67,18 +67,23 @@ impl Executor {
             }
         }
 
-        let (b_boxes, result, min_width, _) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0,20.0)));
-        let b_box = b_boxes.get_total_box();
-        let mut width = b_box.get_width().ceil() as f32;
-        let height = b_box.get_height().ceil() as f32;
-        if text_data.width > width {
-            width = text_data.width;
+        let (b_boxes, result, min_width, (width, height)) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0,20.0)));
+        let mut width = width;
+        let mut height = height;
+
+        match &text_data.paragraph.writing_mode {
+            &WritingMode::HorizontalTB => if text_data.width > width {
+                width = text_data.width
+            },
+            _ => if text_data.height > height {
+                height = text_data.height
+            },
         }
         let result = tran_commands_stream(&result);
 
         let b_boxes: Vec<f32> = (&b_boxes).into();
         let commands: Vec<f32> = (&result).into();
-        let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
+        let typed_array: Vec<f32> = [vec![-5.0, min_width, width, height], b_boxes, commands].concat();
         let boxed_array = typed_array.into_boxed_slice();
 
 //        js_console_log(&format!("缓存数量 {:?} 耗时 {:?}", self.get_cache_count(), now() - start));

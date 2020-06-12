@@ -25,7 +25,7 @@ use serde_json::Value as JsonValue;
 pub mod svg_util;
 pub mod draw;
 
-static FONT_UPDATE_DATA: &'static str = "/opt/chuangkit.font.cache/data.json";
+static FONT_DIR: &'static str = "/opt/chuangkit.font.cache/";
 
 type AF = Arc<Mutex<FontCache<Vec<u8>>>>;
 
@@ -55,7 +55,7 @@ async fn main() {
     thread::spawn(move || {
         let (tx, rx) = channel();
         let mut watcher = watcher(tx, Duration::from_secs_f32(0.1)).unwrap();
-        let w = watcher.watch(FONT_UPDATE_DATA, RecursiveMode::Recursive);
+        let w = watcher.watch(&format!("{}data.json", FONT_DIR), RecursiveMode::Recursive);
         if w.is_err() { return println!("watch error: {:?}", w); }
         loop {
             match rx.recv() {
@@ -82,10 +82,10 @@ async fn main() {
             let json = json.unwrap();
             let result = cc(&json, &font_cache, &font_update_map_in_warp);
             if result.is_none() { return warp::http::Response::builder().status(500).body(String::from("解析文字数据失败")).unwrap(); }
-            let (min_width, b_boxes, commands, _, _) = result.unwrap();
+            let (min_width, b_boxes, commands, _, (width, height)) = result.unwrap();
             let b_boxes: Vec<f32> = (&b_boxes).into();
             let commands: Vec<f32> = (&commands).into();
-            let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
+            let typed_array: Vec<f32> = [vec![-5.0, min_width, width, height], b_boxes, commands].concat();
             let now = SystemTime::now();
             let diff = now.duration_since(start).unwrap_or(Duration::new(0, 0));
             let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
@@ -200,7 +200,7 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>
 fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mutex<FontUpdateMap>>) {
     let font_update_map = &mut *font_update_map.lock().unwrap();
     if !font_update_map.is_latest(font_name) {
-        let file = File::open(format!("/opt/chuangkit.font.cache/{}", font_name));
+        let file = File::open(format!("{}{}", FONT_DIR, font_name));
         if file.is_err() { return println!("打开字体文件失败 {:?}", &font_name); }
         let mut read = file.unwrap();
         let mut font_buffer = vec![];
@@ -232,7 +232,7 @@ fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_updat
 }
 
 fn update_font_update_map() -> JsonValue {
-    let read = File::open(FONT_UPDATE_DATA);
+    let read = File::open(&format!("{}data.json", FONT_DIR));
     if read.is_err() { return JsonValue::Null; }
     let mut read = read.unwrap();
     let mut font_update_data = String::from("");
