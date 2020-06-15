@@ -46,9 +46,14 @@ async fn main() {
     let font_cache = Arc::new(Mutex::new(FontCache::<Vec<u8>>::new()));
     font_cache.lock().unwrap().load_font_bytes("default".to_string(), Cow::Borrowed(&result).to_vec());
 
-    let font_cache = warp::any().map(move || font_cache.clone());
     let font_update_map = Arc::new(Mutex::new(FontUpdateMap::new()));
     font_update_map.lock().unwrap().source = update_font_update_map();
+
+    let start = SystemTime::now();
+    load_all_font(&mut font_cache.lock().unwrap(), &font_update_map);
+    println!("all fonts loaded. {:?}", SystemTime::now().duration_since(start).unwrap_or(Duration::new(0, 0)));
+
+    let font_cache = warp::any().map(move || font_cache.clone());
     let font_update_map1 = font_update_map.clone();
     let font_update_map_in_warp = warp::any().map(move || font_update_map1.clone());
 
@@ -166,7 +171,17 @@ async fn main() {
             format!("graph_cache_count: {}, font_cache_count: {}", glyph_cache_count, font_cache_count)
         });
 
-    let routes = warp::post().and(convert_command.or(convert_svg).or(info));
+    let load_all_font = warp::path("loadAllFonts")
+        .and(font_cache.clone())
+        .and(font_update_map_in_warp.clone())
+        .map(|font_cache: AF, font_update_map_in_warp| {
+            let d = SystemTime::now();
+            let font_cache: &mut FontCache<Vec<u8>> = &mut *font_cache.lock().unwrap();
+            load_all_font(font_cache, &font_update_map_in_warp);
+            format!("all fonts loaded. {:?}", SystemTime::now().duration_since(d).unwrap_or(Duration::new(0, 0)))
+        });
+
+    let routes = warp::post().and(convert_command.or(convert_svg).or(info).or(load_all_font));
 
     println!("text service on 8210");
     warp::serve(routes).run(([0, 0, 0, 0], 8210)).await;
@@ -195,6 +210,19 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>
     let commands = tran_commands_stream(&result);
 
     Some((min_width, b_boxes, commands, text_data, rect))
+}
+
+fn load_all_font(font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mutex<FontUpdateMap>>) {
+    let font_map = &mut *font_update_map.lock().unwrap();
+    let mut font_names = Vec::<String>::new();
+    for (key, _) in font_map.map.iter() {
+        if font_map.is_latest(key) {
+            font_names.push(key.to_string())
+        }
+    }
+    for key in font_names {
+        load_font(&key, font_cache, font_update_map)
+    }
 }
 
 fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mutex<FontUpdateMap>>) {
