@@ -216,7 +216,7 @@ fn load_all_font(font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mute
     let font_map = &mut *font_update_map.lock().unwrap();
     let mut font_names = Vec::<String>::new();
     for (key, _) in font_map.map.iter() {
-        if font_map.is_latest(key) {
+        if !font_map.is_latest(key) {
             font_names.push(key.to_string())
         }
     }
