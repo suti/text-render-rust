@@ -42,21 +42,33 @@ impl std::fmt::Debug for ProcessError {
 
 #[tokio::main]
 async fn main() {
-    let mut entries = std::fs::read_dir(FONT_DIR).unwrap()
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, std::io::Error>>().unwrap();
-    entries.sort();
-    println!("readdir : {:?}", entries);
     let result = include_bytes!("./SourceHanSansSC-Regular.ttf") as &[u8];
     let font_cache = Arc::new(Mutex::new(FontCache::<Vec<u8>>::new()));
     font_cache.lock().unwrap().load_font_bytes("default".to_string(), Cow::Borrowed(&result).to_vec());
 
     let font_update_map = Arc::new(Mutex::new(FontUpdateMap::new()));
-    font_update_map.lock().unwrap().source = update_font_update_map();
+    let init_font_map = update_font_update_map();
+    font_update_map.lock().unwrap().source = init_font_map.clone();
 
-    let start = SystemTime::now();
-    load_all_font(&mut font_cache.lock().unwrap(), &mut font_update_map.lock().unwrap());
-    println!("all fonts loaded. {:?}", SystemTime::now().duration_since(start).unwrap_or(Duration::new(0, 0)));
+    let font_update_map_arc = font_update_map.clone();
+    let font_cache_arc = font_cache.clone();
+
+    thread::spawn(move || {
+        let start = SystemTime::now();
+        let mut font_names = Vec::<String>::new();
+        let default_hash_map = serde_json::map::Map::new();
+        for (key, _) in init_font_map.as_object().unwrap_or(&default_hash_map) {
+            font_names.push(key.to_string())
+        }
+        for key in font_names {
+            std::thread::sleep(Duration::new(0, 100));
+            let font_cache = &mut font_cache_arc.lock().unwrap();
+            let font_map = &mut font_update_map_arc.lock().unwrap();
+            load_font(&key, font_cache, font_map);
+            std::mem::drop(font_map);
+        }
+        println!("all fonts loaded. {:?}", SystemTime::now().duration_since(start).unwrap_or(Duration::new(0, 0)));
+    });
 
     let font_cache = warp::any().map(move || font_cache.clone());
     let font_update_map1 = font_update_map.clone();
