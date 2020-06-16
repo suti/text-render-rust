@@ -107,7 +107,8 @@ async fn main() {
             let (min_width, b_boxes, commands, _, (width, height)) = result.unwrap();
             let b_boxes: Vec<f32> = (&b_boxes).into();
             let commands: Vec<f32> = (&commands).into();
-            let typed_array: Vec<f32> = [vec![-5.0, min_width, width, height], b_boxes, commands].concat();
+            // todo 最新版应为 `[vec![-5.0, min_width, width, height], b_boxes, commands].concat();`
+            let typed_array: Vec<f32> = [vec![min_width], b_boxes, commands].concat();
             let now = SystemTime::now();
             let diff = now.duration_since(start).unwrap_or(Duration::new(0, 0));
             let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
