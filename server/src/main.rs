@@ -50,7 +50,7 @@ async fn main() {
     font_update_map.lock().unwrap().source = update_font_update_map();
 
     let start = SystemTime::now();
-    load_all_font(&mut font_cache.lock().unwrap(), &font_update_map);
+    load_all_font(&mut font_cache.lock().unwrap(), &mut font_update_map.lock().unwrap());
     println!("all fonts loaded. {:?}", SystemTime::now().duration_since(start).unwrap_or(Duration::new(0, 0)));
 
     let font_cache = warp::any().map(move || font_cache.clone());
@@ -171,17 +171,18 @@ async fn main() {
             format!("graph_cache_count: {}, font_cache_count: {}", glyph_cache_count, font_cache_count)
         });
 
-    let load_all_font = warp::path("loadAllFonts")
+    let load_all_fonts = warp::path("loadAllFonts")
         .and(font_cache.clone())
         .and(font_update_map_in_warp.clone())
-        .map(|font_cache: AF, font_update_map_in_warp| {
+        .map(|font_cache: AF, font_update_map_in_warp: Arc<Mutex<FontUpdateMap>>| {
             let d = SystemTime::now();
             let font_cache: &mut FontCache<Vec<u8>> = &mut *font_cache.lock().unwrap();
-            load_all_font(font_cache, &font_update_map_in_warp);
+            let font_update_map_in_warp: &mut FontUpdateMap = &mut *font_update_map_in_warp.lock().unwrap();
+            load_all_font(font_cache, font_update_map_in_warp);
             format!("all fonts loaded. {:?}", SystemTime::now().duration_since(d).unwrap_or(Duration::new(0, 0)))
         });
 
-    let routes = warp::post().and(convert_command.or(convert_svg).or(info).or(load_all_font));
+    let routes = warp::post().and(convert_command.or(convert_svg).or(info).or(load_all_fonts));
 
     println!("text service on 8210");
     warp::serve(routes).run(([0, 0, 0, 0], 8210)).await;
@@ -192,6 +193,7 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>
     let text_data = TextData::parse(&json);
     if text_data.is_none() { return None; }
     let text_data = text_data.unwrap();
+    let font_update_map: &mut FontUpdateMap = &mut *font_update_map.lock().unwrap();
 
     for content in text_data.paragraph.paragraph_content.iter() {
         let blocks = &content.blocks;
@@ -212,21 +214,20 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<Mutex<FontUpdateMap>
     Some((min_width, b_boxes, commands, text_data, rect))
 }
 
-fn load_all_font(font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mutex<FontUpdateMap>>) {
-    let font_map = &mut *font_update_map.lock().unwrap();
+fn load_all_font(font_cache: &mut FontCache<Vec<u8>>, font_map: &mut FontUpdateMap) {
     let mut font_names = Vec::<String>::new();
-    for (key, _) in font_map.map.iter() {
+    let default_hash_map = serde_json::map::Map::new();
+    for (key, _) in font_map.source.as_object().unwrap_or(&default_hash_map) {
         if !font_map.is_latest(key) {
             font_names.push(key.to_string())
         }
     }
     for key in font_names {
-        load_font(&key, font_cache, font_update_map)
+        load_font(&key, font_cache, font_map)
     }
 }
 
-fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &Arc<Mutex<FontUpdateMap>>) {
-    let font_update_map = &mut *font_update_map.lock().unwrap();
+fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &mut FontUpdateMap) {
     if !font_update_map.is_latest(font_name) {
         let file = File::open(format!("{}{}", FONT_DIR, font_name));
         if file.is_err() { return println!("打开字体文件失败 {:?}", &font_name); }
