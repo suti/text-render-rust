@@ -232,7 +232,7 @@ pub mod render {
                 return None;
             }
             let without_prefix = s.trim_start_matches("#");
-            let color = i64::from_str_radix(without_prefix, 16u32).unwrap() as i64;
+            let color = i64::from_str_radix(without_prefix, 16u32).unwrap_or(0) as i64;
             let r = (color >> 16) as u8;
             let g = (color >> 8) as u8;
             let b = color as u8;
