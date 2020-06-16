@@ -42,6 +42,11 @@ impl std::fmt::Debug for ProcessError {
 
 #[tokio::main]
 async fn main() {
+    let mut entries = std::fs::read_dir(FONT_DIR).unwrap()
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, std::io::Error>>().unwrap();
+    entries.sort();
+    println!("readdir : {:?}", entries);
     let result = include_bytes!("./SourceHanSansSC-Regular.ttf") as &[u8];
     let font_cache = Arc::new(Mutex::new(FontCache::<Vec<u8>>::new()));
     font_cache.lock().unwrap().load_font_bytes("default".to_string(), Cow::Borrowed(&result).to_vec());
@@ -230,7 +235,7 @@ fn load_all_font(font_cache: &mut FontCache<Vec<u8>>, font_map: &mut FontUpdateM
 fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &mut FontUpdateMap) {
     if !font_update_map.is_latest(font_name) {
         let file = File::open(format!("{}{}", FONT_DIR, font_name));
-        if file.is_err() { return println!("打开字体文件失败 {:?}", &font_name); }
+        if file.is_err() { return println!("打开字体文件失败 {:?} {:?}", &font_name, file); }
         let mut read = file.unwrap();
         let mut font_buffer = vec![];
         let result = read.read_to_end(&mut font_buffer);
