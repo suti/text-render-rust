@@ -21,6 +21,7 @@ pub struct ArtTextOption {
     pub texture: Option<String>,
     pub stroke: Vec<((u8, u8, u8, f32), f32)>,
     pub shadow: Vec<((u8, u8, u8, f32), (f32, f32), f32)>,
+    pub use_: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -319,11 +320,13 @@ impl TextData {
                 };
             let stroke = get_stroke();
             let shadow = get_shadow();
+            let use_ = art_text_json.get("use").and_then(|v| v.as_bool()).unwrap_or(true);
             art_text = Some(ArtTextOption {
                 fill,
                 texture,
                 stroke,
                 shadow,
+                use_,
             })
         }
 

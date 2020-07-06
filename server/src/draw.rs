@@ -128,7 +128,7 @@ pub fn simply_command(commands: &CommandsList) -> PathData {
 }
 
 pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size: f32, config: ArtTextOption, texture_raw: Option<Bytes>) -> String {
-    let ArtTextOption { fill, texture, stroke, shadow } = config;
+    let ArtTextOption { fill, texture, stroke, shadow, use_ } = config;
     if fill.is_none() && stroke.len() == 0 && shadow.len() == 0 {
         return exec_text(commands, width, height, 1.0);
     }
@@ -167,7 +167,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
     path.assign("stroke-linecap", into_str!["round"]);
     path.assign("stroke-linejoin", into_str!["round"]);
     path.assign("id", into_str![&uuid, "-path"]);
-    defs.append(path);
+    if use_ { defs.append(path.clone()); }
 
     if shadow.len() > 0 {
         let line_width = max_stroke_width;
@@ -178,9 +178,13 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         let default_shadow = ((0u8, 0u8, 0u8, 1f32), (0f32, 0f32), 0f32);
         loop {
             let (color, (x, y), blur) = shadow.get(len).unwrap_or(&default_shadow).clone();
-            let mut use_s = create_use_tag(into_str![&uuid, "-path"]);
-            use_s.assign("class", into_str![&uuid, "-shadow"]);
-            let mut g = group(vec![use_s]);
+            let mut g = if use_ {
+                let mut use_s = create_use_tag(into_str![&uuid, "-path"]);
+                use_s.assign("class", into_str![&uuid, "-shadow"]);
+                group(vec![use_s])
+            } else {
+                group(vec![path.clone()])
+            };
             apply_shadow(&mut defs, &mut g, color, (x * ori, y * ori), blur * ori);
             content.append(g);
             if len == 0 { break; }
@@ -193,8 +197,13 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         let default_stroke = ((0u8, 0u8, 0u8, 1f32), 0f32);
         loop {
             let (color, width) = stroke.get(len).unwrap_or(&default_stroke).clone();
-            let use_s = create_use_tag(into_str![&uuid, "-path"]);
-            let mut g = group(vec![use_s]);
+
+            let mut g = if use_ {
+                let use_s = create_use_tag(into_str![&uuid, "-path"]);
+                group(vec![use_s])
+            } else {
+                group(vec![path.clone()])
+            };
             let color: Color = color.into();
             g.assign("stroke-width", into_str![width * ref_size]);
             g.assign("stroke", color.to_rgb());
@@ -205,7 +214,11 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         }
     }
 
-    let mut use_clip = create_use_tag(into_str![&uuid, "-path"]);
+    let mut use_clip = if use_ {
+        create_use_tag(into_str![&uuid, "-path"])
+    } else {
+        path.clone()
+    };
     use_clip.assign("fill", "#ffffff");
     let clip_path = create_clip_tag(vec![use_clip], into_str![&uuid, "-clip"]);
     defs.append(clip_path);
@@ -249,12 +262,14 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
     }
     if fill.is_some() {
         let Gradient { type_: _, vector, stop } = fill.unwrap();
+        let mut opacity = 0f32;
 
         let stop = {
             let mut n = Vec::<(String, String)>::new();
             for (k, v) in stop.iter() {
                 let color: Color = v.clone().into();
                 n.push((k.to_string(), color.to_rgb()));
+                opacity = color.3;
             }
             n
         };
@@ -263,6 +278,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         defs.append(lg);
         let mut rect = create_rect_tag(width, height, 0f32, 0f32);
         rect.assign("fill", format!("url(#{}-linear)", &uuid));
+        rect.assign("opacity", opacity);
         let mut g = group(vec![rect]);
         g.assign("clip-path", format!("url(#{}-clip)", &uuid));
         g.assign("clip-rule", "nonzero");

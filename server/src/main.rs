@@ -60,12 +60,25 @@ async fn main() {
         for (key, _) in init_font_map.as_object().unwrap_or(&default_hash_map) {
             font_names.push(key.to_string())
         }
-        for key in font_names {
-            std::thread::sleep(Duration::new(0, 100));
-            let font_cache = &mut font_cache_arc.lock().unwrap();
-            let font_map = &mut font_update_map_arc.lock().unwrap();
-            load_font(&key, font_cache, font_map);
-            std::mem::drop(font_map);
+        loop {
+            if &font_names.len() == &0 { break; }
+            let mut load_failed_font = Vec::<String>::new();
+            for key in &font_names {
+                std::thread::sleep(Duration::new(0, 100));
+                let font_cache = &mut font_cache_arc.lock().unwrap();
+                let font_map = &mut font_update_map_arc.lock().unwrap();
+                let is_load = load_font(key, font_cache, font_map);
+                if is_load.is_none() {
+                    load_failed_font.push(key.clone());
+                }
+                std::mem::drop(font_map);
+            }
+            if load_failed_font.len() > 0 {
+                font_names = load_failed_font;
+                std::thread::sleep(Duration::new(10, 0));
+            } else {
+                break;
+            }
         }
         println!("all fonts loaded. {:?}", SystemTime::now().duration_since(start).unwrap_or(Duration::new(0, 0)));
     });
@@ -177,7 +190,10 @@ async fn main() {
             let font_cache: &FontCache<Vec<u8>> = &*font_cache.lock().unwrap();
             let glyph_cache_count = font_cache.get_glyph_cache_count();
             let font_cache_count = font_cache.get_font_cache_count();
-            println!("convertSvg: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
+            println!("convertSvg: {:?}, graph_cache_count: {}, font_cache_count: {}", diff.clone(), glyph_cache_count, font_cache_count);
+            if diff > Duration::from_secs_f32(0.5) {
+                println!("warning 超长的加载耗时: {:?} 请求: {:?}", diff, json);
+            }
             warp::http::Response::builder().status(200).header("content-type", "image/svg+xml").body(svg).unwrap()
         });
     let info = warp::path("info")
@@ -241,18 +257,24 @@ fn load_all_font(font_cache: &mut FontCache<Vec<u8>>, font_map: &mut FontUpdateM
         }
     }
     for key in font_names {
-        load_font(&key, font_cache, font_map)
+        load_font(&key, font_cache, font_map);
     }
 }
 
-fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &mut FontUpdateMap) {
+fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_update_map: &mut FontUpdateMap) -> Option<()> {
     if !font_update_map.is_latest(font_name) {
         let file = File::open(format!("{}{}", FONT_DIR, font_name));
-        if file.is_err() { return println!("打开字体文件失败 {:?} {:?}", &font_name, file); }
+        if file.is_err() {
+            println!("打开字体文件失败 {:?} {:?}", &font_name, file);
+            return None;
+        }
         let mut read = file.unwrap();
         let mut font_buffer = vec![];
         let result = read.read_to_end(&mut font_buffer);
-        if result.is_err() { return println!("读字体文件失败 {:?}", &font_name); }
+        if result.is_err() {
+            println!("读字体文件失败 {:?}", &font_name);
+            return None;
+        }
         if let Some((typ, p)) = check_type(&font_buffer) {
             if "ttf".to_string() == typ.clone() {
                 if p {
@@ -276,6 +298,7 @@ fn load_font(font_name: &String, font_cache: &mut FontCache<Vec<u8>>, font_updat
         }
         font_update_map.update(font_name);
     }
+    Some(())
 }
 
 fn update_font_update_map() -> JsonValue {

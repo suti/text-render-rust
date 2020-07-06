@@ -4,22 +4,15 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 extern crate js_sys;
 extern crate web_sys;
 extern crate wasm_bindgen;
-extern crate wasm_bindgen_futures;
-
-pub mod chars;
 
 use std::collections::HashMap;
 use std::borrow::Cow;
 
-use crate::js_sys::Promise;
-use crate::wasm_bindgen::JsValue;
 use crate::wasm_bindgen::prelude::wasm_bindgen;
-use crate::wasm_bindgen_futures::{future_to_promise, JsFuture, spawn_local};
 
-use core::open_type_like::command::{tran_commands_stream, CommandSegment};
-use core::open_type_like::bbox::{BBox, BBoxes};
+use core::open_type_like::command::{tran_commands_stream};
+use core::open_type_like::bbox::{BBoxes};
 use core::typesetting::{compute_render_command, MergedFont};
-use core::data::font_data::FontData;
 use core::data::text_data::{TextData, WritingMode};
 use core::open_type_like::glyph::Glyph;
 use font::ttf::FontCache;
@@ -70,7 +63,7 @@ impl Executor {
             }
         }
 
-        let (b_boxes, result, min_width, (width, height)) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0,20.0)));
+        let (b_boxes, result, min_width, (width, height)) = compute_render_command(text_data, self).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0, 20.0)));
         let mut width = width;
         let mut height = height;
 
