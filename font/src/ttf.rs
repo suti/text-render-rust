@@ -10,6 +10,7 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
     pub fn new(d: Data) -> Option<Font<Data>> {
         let font_info = stt::FontInfo::new(d, 0);
         if let Some(font_info) = font_info {
+            font_info.get_font_name_strings();
             Some(Font(font_info))
         } else {
             None
@@ -32,7 +33,7 @@ impl<Data: std::ops::Deref<Target=[u8]>> Font<Data> {
             ascender,
             descender,
             left_side_bearing,
-            char_code: Some(char_code)
+            char_code: Some(char_code),
         }
     }
 }
@@ -84,6 +85,10 @@ impl<Data: std::ops::Deref<Target=[u8]>> FontCache<Data> {
         let font = Font::new(data)?;
         self.font_map.insert(font_name, Box::new(font));
         Some(())
+    }
+    pub fn has_glyph(&self, font_name: String, c: u32) -> bool {
+        let result = self.glyph_indexes.get(&(font_name.clone(), c.clone()));
+        result.is_some()
     }
     pub fn check_glyph(&mut self, font_name: String, c: u32) {
         let result = self.glyph_indexes.get(&(font_name.clone(), c.clone()));
