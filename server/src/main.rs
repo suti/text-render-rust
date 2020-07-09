@@ -65,8 +65,12 @@ async fn main() {
             for key in &font_names {
                 std::thread::sleep(Duration::new(0, 100));
                 let is_load = {
+                    println!("try write font_update_map_arc");
                     let font_map = &mut font_update_map_arc.write().unwrap();
-                    load_font(key, &font_cache_arc, font_map)
+                    println!("try write font_update_map_arc ok");
+                    let is_load = load_font(key, &font_cache_arc, font_map);
+                    println!("try write font_update_map_arc finish");
+                    is_load
                 };
                 if is_load.is_none() {
                     load_failed_font.push(key.clone());
@@ -131,6 +135,7 @@ async fn main() {
         });
     let convert_svg = warp::path("convertSvg")
         .and(warp::body::bytes().and_then(|json: Bytes| async move {
+            println!("convertSvg request in!");
             let start = SystemTime::now();
             let json = String::from_utf8(json.to_vec());
             if json.is_err() { return Err(warp::reject::custom(ProcessError("解析字符串失败".to_string()))); }
@@ -222,8 +227,12 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap
     let text_data = text_data.unwrap();
 
     let (pre_font, pre_glyph) = {
+        println!("try font_cache_read ");
         let font_cache_read = &font_cache.read().unwrap();
+        println!("try font_cache_read ok");
+        println!("try font_update_map_read");
         let font_update_map_read: &FontUpdateMap = &font_update_map.read().unwrap();
+        println!("try font_update_map_read ok");
         let mut pre_font = HashSet::<String>::new();
         let mut pre_glyph = HashSet::<(String, u32)>::new();
 
@@ -247,20 +256,26 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap
     };
 
     if pre_font.len() > 0 {
+        println!("try font_update_map_ write");
         let font_update_map = &mut *font_update_map.write().unwrap();
+        println!("try font_update_map_ write ok");
         for font_family in pre_font.iter() {
             load_font(font_family, font_cache, font_update_map);
         }
     }
 
     if pre_glyph.len() > 0 {
+        println!("try font_cache_ write");
         let font_cache = &mut *font_cache.write().unwrap();
+        println!("try font_cache_ write ok");
         for (font_family, text) in pre_glyph.iter() {
             font_cache.check_glyph(font_family.to_string(), *text);
         }
     }
 
+    println!("try font_cache_ read 2");
     let font_cache_read = font_cache.read().unwrap();
+    println!("try font_cache_ read 2 ok");
     let (b_boxes, result, min_width, rect) = compute_render_command(&text_data, &*font_cache_read).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0, 20.0)));
     let commands = tran_commands_stream(&result);
 
