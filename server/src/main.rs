@@ -220,12 +220,8 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap
     let text_data = text_data.unwrap();
 
     let (pre_font, pre_glyph) = {
-        println!("try font_cache_read ");
         let font_cache_read = &font_cache.read().unwrap();
-        println!("try font_cache_read ok");
-        println!("try font_update_map_read");
         let font_update_map_read: &FontUpdateMap = &font_update_map.read().unwrap();
-        println!("try font_update_map_read ok");
         let mut pre_font = HashSet::<String>::new();
         let mut pre_glyph = HashSet::<(String, u32)>::new();
 
@@ -255,17 +251,13 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap
     }
 
     if pre_glyph.len() > 0 {
-        println!("try font_cache_ write");
         let font_cache = &mut *font_cache.write().unwrap();
-        println!("try font_cache_ write ok");
         for (font_family, text) in pre_glyph.iter() {
             font_cache.check_glyph(font_family.to_string(), *text);
         }
     }
 
-    println!("try font_cache_ read 2");
     let font_cache_read = font_cache.read().unwrap();
-    println!("try font_cache_ read 2 ok");
     let (b_boxes, result, min_width, rect) = compute_render_command(&text_data, &*font_cache_read).unwrap_or((BBoxes::new(), (HashMap::new(), Vec::new()), -1.0, (20.0, 20.0)));
     let commands = tran_commands_stream(&result);
 
@@ -301,16 +293,14 @@ fn load_font(font_name: &String, font_cache: &AF, font_update_map: &Arc<RwLock<F
                         println!("解压失败 {:?}", &font_name);
                     }
                 }
-                println!("try write font_cache in load font");
-                let font_cache = &mut *font_cache.write().unwrap();
-                println!("try write font_cache ok in load font");
-                let result = font_cache.load_font_bytes(font_name.clone(), font_buffer);
+                let result = {
+                    let font_cache = &mut *font_cache.write().unwrap();
+                    font_cache.load_font_bytes(font_name.clone(), font_buffer)
+                };
                 if result.is_none() {
                     println!("加载失败 {:?}", &font_name);
                 } else {
-                    println!("try write font_update_map in load font");
                     let font_update_map = &mut *font_update_map.write().unwrap();
-                    println!("try write font_update_map ok in load font");
                     font_update_map.update(font_name);
                     println!("加载完成 {:?}", &font_name);
                 }
