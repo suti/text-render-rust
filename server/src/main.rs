@@ -25,7 +25,7 @@ use serde_json::Value as JsonValue;
 pub mod svg_util;
 pub mod draw;
 
-static FONT_DIR: &'static str = "/opt/chuangkit.font.cache/";
+static FONT_DIR: &'static str = "/Users/suti/start/text-render-rust/server/test/";
 
 type AF = Arc<RwLock<FontCache<Vec<u8>>>>;
 
@@ -64,12 +64,13 @@ async fn main() {
             let mut load_failed_font = Vec::<String>::new();
             for key in &font_names {
                 std::thread::sleep(Duration::new(0, 100));
-                let font_map = &mut font_update_map_arc.write().unwrap();
-                let is_load = load_font(key, &font_cache_arc, font_map);
+                let is_load = {
+                    let font_map = &mut font_update_map_arc.write().unwrap();
+                    load_font(key, &font_cache_arc, font_map)
+                };
                 if is_load.is_none() {
                     load_failed_font.push(key.clone());
                 }
-                std::mem::drop(font_map);
             }
             if load_failed_font.len() > 0 {
                 font_names = load_failed_font;
@@ -115,7 +116,7 @@ async fn main() {
             let json = json.unwrap();
             let result = cc(&json, &font_cache, &font_update_map_in_warp);
             if result.is_none() { return warp::http::Response::builder().status(500).body(String::from("解析文字数据失败")).unwrap(); }
-            let (min_width, b_boxes, commands, _, (width, height)) = result.unwrap();
+            let (min_width, b_boxes, commands, _, (_width, _height)) = result.unwrap();
             let b_boxes: Vec<f32> = (&b_boxes).into();
             let commands: Vec<f32> = (&commands).into();
             // todo 最新版应为 `[vec![-5.0, min_width, width, height], b_boxes, commands].concat();`
