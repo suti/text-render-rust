@@ -64,14 +64,7 @@ async fn main() {
             let mut load_failed_font = Vec::<String>::new();
             for key in &font_names {
                 std::thread::sleep(Duration::new(0, 100));
-                let is_load = {
-                    println!("try write font_update_map_arc");
-                    let font_map = &mut font_update_map_arc.write().unwrap();
-                    println!("try write font_update_map_arc ok");
-                    let is_load = load_font(key, &font_cache_arc, font_map);
-                    println!("try write font_update_map_arc finish");
-                    is_load
-                };
+                let is_load = load_font(key, &font_cache_arc, &font_update_map_arc);
                 if is_load.is_none() {
                     load_failed_font.push(key.clone());
                 }
@@ -256,9 +249,6 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap
     };
 
     if pre_font.len() > 0 {
-        println!("try font_update_map_ write");
-        let font_update_map = &mut *font_update_map.write().unwrap();
-        println!("try font_update_map_ write ok");
         for font_family in pre_font.iter() {
             load_font(font_family, font_cache, font_update_map);
         }
@@ -282,8 +272,12 @@ fn cc(json: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap
     Some((min_width, b_boxes, commands, text_data, rect))
 }
 
-fn load_font(font_name: &String, font_cache: &AF, font_update_map: &mut FontUpdateMap) -> Option<()> {
-    if !font_update_map.is_latest(font_name) {
+fn load_font(font_name: &String, font_cache: &AF, font_update_map: &Arc<RwLock<FontUpdateMap>>) -> Option<()> {
+    let is_latest = {
+        let font_update_map_read = &font_update_map.read().unwrap();
+        font_update_map_read.is_latest(font_name)
+    };
+    if !is_latest {
         let file = File::open(format!("{}{}", FONT_DIR, font_name));
         if file.is_err() {
             println!("打开字体文件失败 {:?} {:?}", &font_name, file);
@@ -307,18 +301,23 @@ fn load_font(font_name: &String, font_cache: &AF, font_update_map: &mut FontUpda
                         println!("解压失败 {:?}", &font_name);
                     }
                 }
+                println!("try write font_cache in load font");
                 let font_cache = &mut *font_cache.write().unwrap();
+                println!("try write font_cache ok in load font");
                 let result = font_cache.load_font_bytes(font_name.clone(), font_buffer);
                 if result.is_none() {
                     println!("加载失败 {:?}", &font_name);
                 } else {
+                    println!("try write font_update_map in load font");
+                    let font_update_map = &mut *font_update_map.write().unwrap();
+                    println!("try write font_update_map ok in load font");
+                    font_update_map.update(font_name);
                     println!("加载完成 {:?}", &font_name);
                 }
             } else {
                 println!("加载失败 {:?} {:?}", font_name, typ);
             }
         }
-        font_update_map.update(font_name);
     }
     Some(())
 }
