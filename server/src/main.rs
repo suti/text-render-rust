@@ -124,11 +124,13 @@ async fn main() {
             let glyph_cache_count = font_cache.get_glyph_cache_count();
             let font_cache_count = font_cache.get_font_cache_count();
             println!("convertCommand: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
+            if diff > Duration::from_secs_f32(0.5) {
+                println!("warning convert_command: {:?} 耗时: {:?}", diff, json);
+            }
             warp::http::Response::builder().status(200).body(format!("{:?}", typed_array)).unwrap()
         });
     let convert_svg = warp::path("convertSvg")
         .and(warp::body::bytes().and_then(|json: Bytes| async move {
-            println!("convertSvg request in!");
             let start = SystemTime::now();
             let json = String::from_utf8(json.to_vec());
             if json.is_err() { return Err(warp::reject::custom(ProcessError("解析字符串失败".to_string()))); }
@@ -189,7 +191,7 @@ async fn main() {
             let font_cache_count = font_cache.get_font_cache_count();
             println!("convertSvg: {:?}, graph_cache_count: {}, font_cache_count: {}", diff.clone(), glyph_cache_count, font_cache_count);
             if diff > Duration::from_secs_f32(0.5) {
-                println!("warning 超长的加载耗时: {:?} 请求: {:?}", diff, json);
+                println!("warning convert_svg: {:?} 耗时: {:?}", diff, json);
             }
             warp::http::Response::builder().status(200).header("content-type", "image/svg+xml").body(svg).unwrap()
         });
@@ -342,11 +344,18 @@ impl FontUpdateMap {
             map: HashMap::<String, (usize, u32)>::new(),
         }
     }
+
+    fn is_official(&self, font_family: &str) -> bool {
+        self.source.get(font_family).and_then(|_| Some(true)).unwrap_or(false)
+    }
+
     fn is_latest(&self, font_family: &str) -> bool {
         let value = self.map.get(font_family);
         if value.is_none() { return false; }
         let (times, tag) = value.unwrap();
         if *times == self.update_times { return true; }
+        // tag == 100 font is uploaded from user
+        if *tag == 100u32 { return true; }
         let tag_s = self.source.get(font_family).and_then(|v| v.as_i64()).and_then(|v| Some(v as u32));
         if tag_s.is_none() { return false; }
         let tag_s = tag_s.unwrap();
@@ -361,6 +370,9 @@ impl FontUpdateMap {
         let tag_s = self.source.get(font_family).and_then(|v| v.as_i64()).and_then(|v| Some(v as u32));
         if tag_s.is_some() {
             let tag_s = tag_s.unwrap();
+            self.map.insert(font_family.to_string(), (self.update_times, tag_s));
+        } else {
+            let tag_s = 100u32;
             self.map.insert(font_family.to_string(), (self.update_times, tag_s));
         }
     }
