@@ -20,7 +20,7 @@ pub mod svg_methods {
         svg.assign("width", into_str![width]);
         svg.assign("height", into_str![height]);
         svg.assign("viewBox", into_str!["0 0 ",width," ", height]);
-        // svg.assign("xmlns:xlink=", "http://www.w3.org/1999/xlink");
+        svg.assign("xmlns:xlink", "http://www.w3.org/1999/xlink");
         svg
     }
 
@@ -30,7 +30,7 @@ pub mod svg_methods {
 
     pub fn create_image_tag(href: String) -> Element {
         let mut image = Element::new("image");
-        image.assign("href", href);
+        image.assign("xlink:href", href);
         image
     }
 
@@ -89,7 +89,7 @@ pub mod svg_methods {
 
     pub fn create_use_tag(id: String) -> Element {
         let mut use_tag = Element::new("use");
-        use_tag.assign("href", into_str!["#", id]);
+        use_tag.assign("xlink:href", into_str!["#", id]);
         use_tag
     }
 
