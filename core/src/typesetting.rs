@@ -66,6 +66,7 @@ pub fn compute_render_command(text_data: &TextData, font: &impl MergedFont) -> O
             } = block;
             let mut text_chars = text.chars();
             while let Some(text) = text_chars.next() {
+                if text == 10 as char || text == 13 as char { continue; }
                 let glyph = get_glyph(font_family.clone(), text.to_string());
                 let text_block_detail = TextBlockDetail {
                     glyph,

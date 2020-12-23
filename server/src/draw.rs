@@ -35,6 +35,10 @@ impl ToColorString for Color {
 }
 
 pub fn exec_text(commands: &CommandsList, width: f32, height: f32, scale: f32) -> String {
+    let path_data = simply_command(commands);
+    let bbox = path_data.get_bounding_box().unwrap_or_else(|| BoundingBox::new(0.0, 0.0));
+    let width = if width > bbox.x2 { width } else { bbox.x2 };
+    let height = if height > bbox.y2 { height } else { bbox.y2 };
     let mut ctx = Context::new(width, height);
 
     ctx.line_cap = "round".to_string();
@@ -136,6 +140,8 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
     let bbox = path_data.get_bounding_box().unwrap_or_else(|| BoundingBox::new(0.0, 0.0));
     let b_width = bbox.get_width();
     let b_height = bbox.get_height();
+    let b_x = bbox.x1;
+    let b_y = bbox.y1;
 
     let uuid = into_str!["u", Uuid::new_v4().to_string()];
     let ori = (width.powf(2.0) + height.powf(2.0)).sqrt();
@@ -144,7 +150,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         0f32
     } else {
         let (_, width) = stroke.last().unwrap();
-        *width
+        *width * ref_size
     };
 
     let mut stroke_box = bbox.clone();
@@ -276,7 +282,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
 
         let lg = create_linear_gradient(vector, stop, into_str![&uuid, "-linear"]);
         defs.append(lg);
-        let mut rect = create_rect_tag(width, height, 0f32, 0f32);
+        let mut rect = create_rect_tag(b_width, b_height, b_x, b_y);
         rect.assign("fill", format!("url(#{}-linear)", &uuid));
         rect.assign("opacity", opacity);
         let mut g = group(vec![rect]);
