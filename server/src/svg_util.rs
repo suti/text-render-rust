@@ -175,11 +175,12 @@ pub mod url {
     use tokio::runtime::Runtime;
 
     pub async fn fetch_async(url: &str) -> Option<Bytes> {
-        let url = if !url.contains("http:") {
+        let mut url = if !url.contains("http:") && !url.contains("https:") {
             format!("http:{}", url)
         } else {
             url.to_string()
         };
+        url = url.replace("https:", "http:");
         let p = url.parse();
         if p.is_err() { return None; }
         let url = p.unwrap();
