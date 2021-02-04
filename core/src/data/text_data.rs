@@ -246,6 +246,11 @@ impl TextData {
                             continue;
                         }
                         let item = item.as_object().unwrap();
+                        if let Some(hidden) = item.get("hidden") {
+                            if let Some(hidden) = hidden.as_bool() {
+                                if hidden { continue; }
+                            }
+                        }
                         if item.get("width").is_none() {
                             continue;
                         }
@@ -275,6 +280,11 @@ impl TextData {
                             continue;
                         }
                         let item = item.as_object().unwrap();
+                        if let Some(hidden) = item.get("hidden") {
+                            if let Some(hidden) = hidden.as_bool() {
+                                if hidden { continue; }
+                            }
+                        }
                         let blur =
                             if item.get("blur").is_none() {
                                 0f32
