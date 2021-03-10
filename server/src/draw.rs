@@ -11,13 +11,19 @@ use bytes::Bytes;
 
 pub struct Color(u8, u8, u8, f32);
 
+impl Color {
+    pub fn get_opacity(&self) -> f32 {
+        self.3.clone()
+    }
+}
+
 impl From<(u8, u8, u8, f32)> for Color {
     fn from((r, g, b, a): (u8, u8, u8, f32)) -> Self {
         Color(r, g, b, a)
     }
 }
 
-trait ToColorString {
+pub trait ToColorString {
     fn to_rgb(&self) -> String;
     fn to_rgba(&self) -> String;
 }
@@ -268,14 +274,14 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
     }
     if fill.is_some() {
         let Gradient { type_: _, vector, stop } = fill.unwrap();
-        let mut opacity = 0f32;
+        // let mut opacity = 0f32;
 
         let stop = {
-            let mut n = Vec::<(String, String)>::new();
+            let mut n = Vec::<(String, Color)>::new();
             for (k, v) in stop.iter() {
                 let color: Color = v.clone().into();
-                n.push((k.to_string(), color.to_rgb()));
-                opacity = color.3;
+                n.push((k.to_string(), color));
+                // opacity = color.3;
             }
             n
         };
@@ -284,7 +290,7 @@ pub fn exec_art_text(commands: &CommandsList, width: f32, height: f32, ref_size:
         defs.append(lg);
         let mut rect = create_rect_tag(b_width, b_height, b_x, b_y);
         rect.assign("fill", format!("url(#{}-linear)", &uuid));
-        rect.assign("opacity", opacity);
+        // rect.assign("opacity", opacity);
         let mut g = group(vec![rect]);
         g.assign("clip-path", format!("url(#{}-clip)", &uuid));
         g.assign("clip-rule", "nonzero");

@@ -129,6 +129,32 @@ async fn main() {
             }
             warp::http::Response::builder().status(200).body(format!("{:?}", typed_array)).unwrap()
         });
+    let compute_box = warp::path("computeBox")
+        .and(warp::body::bytes())
+        .and(font_cache.clone())
+        .and(font_update_map_in_warp.clone())
+        .map(|json: Bytes, font_cache, font_update_map_in_warp| {
+            let start = SystemTime::now();
+            let json = String::from_utf8(json.to_vec());
+            if json.is_err() { return warp::http::Response::builder().status(500).body(String::from("解析字符串失败")).unwrap(); }
+            let json = json.unwrap();
+            let result = cc(&json, &font_cache, &font_update_map_in_warp);
+            if result.is_none() { return warp::http::Response::builder().status(500).body(String::from("解析文字数据失败")).unwrap(); }
+            let (min_width, b_boxes, _commands, _, (_width, _height)) = result.unwrap();
+            let b_boxes: Vec<f32> = (&b_boxes).into();
+            // todo 最新版应为 `[vec![-5.0, min_width, width, height], b_boxes, commands].concat();`
+            let typed_array: Vec<f32> = [vec![min_width], b_boxes].concat();
+            let now = SystemTime::now();
+            let diff = now.duration_since(start).unwrap_or(Duration::new(0, 0));
+            let font_cache: &FontCache<Vec<u8>> = &*font_cache.read().unwrap();
+            let glyph_cache_count = font_cache.get_glyph_cache_count();
+            let font_cache_count = font_cache.get_font_cache_count();
+            println!("computeBox: {:?}, graph_cache_count: {}, font_cache_count: {}", diff, glyph_cache_count, font_cache_count);
+            if diff > Duration::from_secs_f32(0.5) {
+                println!("warning computeBox: {:?} 耗时: {:?}", diff, json);
+            }
+            warp::http::Response::builder().status(200).body(format!("{:?}", typed_array)).unwrap()
+        });
     let convert_svg = warp::path("convertSvg")
         .and(warp::body::bytes().and_then(|json: Bytes| async move {
             let start = SystemTime::now();
@@ -210,7 +236,7 @@ async fn main() {
             format!("延时1分钟")
         });
 
-    let routes = warp::post().and(convert_command.or(convert_svg).or(info).or(test));
+    let routes = warp::post().and(convert_command.or(compute_box).or(convert_svg).or(info).or(test));
 
     println!("text service on 8210");
     warp::serve(routes).run(([0, 0, 0, 0], 8210)).await;

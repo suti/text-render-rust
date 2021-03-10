@@ -14,6 +14,8 @@ macro_rules! into_str {
 pub mod svg_methods {
     use svg::{Document, Node};
     use svg::node::element::{Element, Style};
+    use crate::draw::Color;
+    use crate::draw::ToColorString;
 
     pub fn create_svg_tag(width: f32, height: f32) -> Document {
         let mut svg = Document::new();
@@ -71,7 +73,7 @@ pub mod svg_methods {
         Element::new("filter")
     }
 
-    pub fn create_linear_gradient(vector: (f32, f32), stop: Vec<(String, String)>, key: String) -> Element {
+    pub fn create_linear_gradient(vector: (f32, f32), stop: Vec<(String, Color)>, key: String) -> Element {
         let mut linear_gradient = Element::new("linearGradient");
         linear_gradient.assign("id", key);
         linear_gradient.assign("x1", into_str![0]);
@@ -81,7 +83,8 @@ pub mod svg_methods {
         for (key, value) in stop {
             let mut stop = Element::new("stop");
             stop.assign("offset", key.clone());
-            stop.assign("stop-color", value.clone());
+            stop.assign("stop-color", value.to_rgb());
+            stop.assign("stop-opacity", value.get_opacity());
             linear_gradient.append(stop);
         }
         linear_gradient
@@ -225,6 +228,7 @@ pub mod render {
     use core::open_type_like::path::PathData;
     use svg::Node;
     use svg::node::element::Element;
+    use crate::draw::Color;
 
     pub fn split_color_string(s: &str) -> Option<(u8, u8, u8, f32)> {
         let s = s.replace(" ", "");
@@ -305,7 +309,7 @@ pub mod render {
             }
         }
 
-        pub fn create_linear_gradient(vector: (f32, f32), stop: Vec<(String, String)>, key: String) -> Element {
+        pub fn create_linear_gradient(vector: (f32, f32), stop: Vec<(String, Color)>, key: String) -> Element {
             create_linear_gradient(vector, stop, key)
         }
 
@@ -402,10 +406,11 @@ pub mod render {
 #[cfg(test)]
 mod tests {
     use super::svg_methods::*;
+    use crate::draw::Color;
 
     #[test]
     fn it_works() {
-        let map = vec![("0".to_string(), "#ffffff".to_string()), ("1".to_string(), "#00ffcc".to_string())];
+        let map = vec![("0".to_string(), Color(0, 0, 0, 1.0)), ("1".to_string(), Color(0, 0, 0, 1.0))];
         let l = create_linear_gradient((0.0, 1.0), map, "hello".to_string());
         let mut defs = create_defs_tag();
         let mut rect = create_rect_tag(40.0, 40.0, 0.0, 0.0);
